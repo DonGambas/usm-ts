@@ -3,7 +3,7 @@ import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Keypair, PublicKey, Transaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import BN from 'bn.js';
-import {USMClient} from "../../../ts/build/index"
+import { USMClient } from "usm-js";
 
 interface Wallet {
   publicKey: PublicKey;

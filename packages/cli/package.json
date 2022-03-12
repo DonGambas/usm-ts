@@ -1,17 +1,27 @@
 {
-  "name": "cli",
-  "version": "1.0.0",
+  "name": "usm-cli",
+  "version": "0.0.0",
   "description": "",
   "main": "index.js",
   "bin": {
-    "usm-cli": "./build/cli/src/usm-cli.js"
+    "usm-cli": "./lib/cli/src/usm-cli.js"
   },
   "scripts": {
+    "tsc": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "publishConfig": {
+    "access": "public"
+  },
+  "directories": {
+    "lib": "lib"
+  },
+  "files": [
+    "lib"
+  ],
   "dependencies": {
     "@metaplex-foundation/mpl-auction": "^0.0.2",
     "@metaplex-foundation/mpl-core": "^0.0.2",
@@ -20,6 +30,7 @@
     "@metaplex/js": "^4.12.0",
     "@solana/spl-token": "^0.1.8",
     "@solana/web3.js": "^1.34.0",
+    "arconnect": "^0.4.1",
     "arweave": "^1.10.23",
     "bn.js": "^5.2.0",
     "commander": "^9.0.0"
