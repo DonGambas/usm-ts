@@ -634,7 +634,7 @@ program
               },
             );
         
-            await sendAndConfirmTransaction(connection, tx, [payer, payer], {
+            await sendAndConfirmTransaction(connection, tx, [payer], {
               commitment: 'confirmed',
             });
 
@@ -644,7 +644,7 @@ program
 
         program
         .command('end-auction')
-        .argument('<vault>', 'auction vault')
+        .argument('<auction>', 'auction pubkey')
         .option(
             '-e, --env <string>',
             'Solana cluster env name',
@@ -655,17 +655,21 @@ program
             `Solana wallet location`,
             '--keypair not provided',
         )
-        .action(async (vault, options) => {
+        .action(async (auction, options) => {
 
             const { env, keypair } = options;
 
             const connection = new Connection(clusterApiUrl(env))
             const wallet = new NodeWallet(loadKeypair(keypair))
-
             const {payer} = wallet
-            const storeId = await Store.getPDA(payer.publicKey);
 
-            const vaultPubKey = new PublicKey(vault);
+            console.log(payer.publicKey.toBase58())
+
+            const auctionManager = await AuctionManager.getPDA(auction);
+            const manager = await AuctionManager.load(connection, auctionManager)
+            const vaultPubKey = new PublicKey(manager.data.vault);
+
+            const storeId = await Store.getPDA(payer.publicKey);
             const auctionPDA = await Auction.getPDA(vaultPubKey);
             const auctionExtendedPDA = await AuctionExtended.getPDA(vaultPubKey)
             const auctionManagerPDA = await AuctionManager.getPDA(auctionPDA);
@@ -678,12 +682,12 @@ program
                   auction: auctionPDA,
                   auctionExtended:auctionExtendedPDA,
                   auctionManager: auctionManagerPDA,
-                  auctionManagerAuthority: auctionManagerPDA
+                  auctionManagerAuthority: wallet.publicKey
                
               },
             );
         
-            await sendAndConfirmTransaction(connection, tx, [payer, payer], {
+            await sendAndConfirmTransaction(connection, tx, [payer], {
               commitment: 'confirmed',
             });
 

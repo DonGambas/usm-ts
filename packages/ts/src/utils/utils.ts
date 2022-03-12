@@ -312,7 +312,7 @@ export const transformAuctionData = async(auction: Auction, connection:Connectio
   const AuctionData : USMAuctionData = {
     pubkey: auction.pubkey,
     acceptedToken: new PublicKey(auction.data.tokenMint),
-    endedAt: auction.data.endAuctionAt ? auction.data.endedAt.toNumber(): null, 
+    endedAt: auction.data.endedAt ? auction.data.endedAt.toNumber(): null, 
     endAuctionAt: auction.data.endAuctionAt ? auction.data.endAuctionAt.toNumber(): null, 
     isLive: auction.data.state === 1,
     bids: usmBidData,

@@ -4,7 +4,7 @@ import {web3, Provider, BN} from "@project-serum/anchor"
 import { clusterApiUrl, Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { assert } from "chai";
 import { USMClient } from "../src";
-import { AUCTION_PUBKEY} from "./utils";
+import { AUCTION_PUBKEY, STORE_PUBKEY} from "./utils";
 const {Keypair} = web3;
 
 
@@ -43,9 +43,9 @@ describe('auction', () => {
     await USM.cancelBid(AUCTION_PUBKEY);
   })
 
-  it("should claim bid on the auction", async ()=>{
+  /*it("should claim bid on the auction", async ()=>{
     //this can only be tested when auction has ended
-    //const tx = await USM.claimBid(STORE_PUBKEY, AUCTION_PUBKEY );
+    const tx = await USM.claimBid(STORE_PUBKEY, AUCTION_PUBKEY );
 
-  })
+  })*/
 })
