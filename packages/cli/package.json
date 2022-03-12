@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "bin": {
-    "usm-cli": "./lib/cli/src/usm-cli.js"
+    "usm-cli": "./lib/usm-cli.js"
   },
   "scripts": {
     "tsc": "tsc",
