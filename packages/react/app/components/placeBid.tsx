@@ -11,7 +11,7 @@ interface Wallet {
   signAllTransactions(txs: Transaction[]): Promise<Transaction[]>;
 }
 
-export const AUCTION_PUBKEY = new PublicKey('2Uv4eWokSke21VcDVbjBysPZpxpQAr4vrwUob9viiS82');
+export const AUCTION_PUBKEY = new PublicKey('Qc8RCSx55RiptsqeEm54DFUrsvH8biiyxL7XGpmKzz4');
 
 const PlaceBid: FC = () => {
     const { connection } = useConnection();

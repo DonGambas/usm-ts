@@ -7,6 +7,7 @@
   "scripts": {
     "test": "./node_modules/ts-mocha/bin/ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts",
     "test-auction": "./node_modules/ts-mocha/bin/ts-mocha -p ./tsconfig.json -t 1000000 tests/test.auction.ts",
+    "build-ts":"npm i && tsc",
     "tsc": "tsc"
   },
   "keywords": [],

@@ -7,6 +7,7 @@
     "usm-cli": "./lib/usm-cli.js"
   },
   "scripts": {
+    "build-ts":"npm i && tsc",
     "tsc": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
