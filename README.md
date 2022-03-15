@@ -1,6 +1,14 @@
 # USM TS
 
-## Build
+## Install Deps and Compile Typescript Libraries
+
+```
+
+lerna run build-ts
+
+```
+
+## Compile Typescript Libraries
 
 ```
 //runs npm tsc in all packages
