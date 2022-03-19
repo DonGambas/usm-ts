@@ -11,7 +11,7 @@ import { loadKeypair, getOriginalLookupPDA} from "../src/utils/utils"
 import { NodeWallet, actions } from '@metaplex/js';
 import { Token, TOKEN_PROGRAM_ID, NATIVE_MINT } from "@solana/spl-token";
 import { ValidateSafetyDepositBoxV2 } from '../src/utils/validateSafetyDepositBoxV2';
-import {USMClient} from "usm-js";
+import {USMClient} from "../../ts/src/index"
 
 const {initStoreV2, createExternalPriceAccount, createVault, initAuction, addTokensToVault, mintNFT, closeVault, claimBid} = actions;
 
@@ -57,7 +57,6 @@ import {
   WinningConstraint } from '../src/utils/SafetyDepositConfig';
 
 import { TupleNumericType, Transaction } from '@metaplex-foundation/mpl-core';
-import { isTypedArray } from "util/types";
 
 
 const auctionNftMetadata = "https://arweave.net:443/ZvkmQOAlk0HBbR50C-rRS3OlMmUtmxfpEdYcsGi4viA";
@@ -192,7 +191,6 @@ describe('auction', () => {
 
     await connection.confirmTransaction(txId)
 
-    const auctionInstance = await Auction.load(connection, auction);
     //console.log("auction created at", auctionInstance.pubkey.toBase58())
   })
 
@@ -234,7 +232,7 @@ describe('auction', () => {
     const txs = Transaction.fromCombined([initAuctionManagerTx ,SetVaultAuthorityTx ]);
 
     await sendAndConfirmTransaction(connection, txs, [wallet.payer], {
-        commitment: 'confirmed',
+        commitment: 'finalized',
     });
 
     //console.log("auction manager created at", auctionManagerPDA.toBase58(), "vault and auction authority transfered to auction manager")
@@ -286,7 +284,7 @@ describe('auction', () => {
         )
 
         await sendAndConfirmTransaction(connection, aTx, [wallet.payer], {
-            commitment: 'confirmed',
+            commitment: 'finalized',
         });
     
 
@@ -339,7 +337,7 @@ describe('auction', () => {
         )
 
         await sendAndConfirmTransaction(connection, ptTx, [wallet.payer], {
-            commitment: 'confirmed',
+            commitment: 'finalized',
         });
 
         //console.log(`auction manager validated!`)
@@ -363,7 +361,7 @@ describe('auction', () => {
     )
 
     await sendAndConfirmTransaction(connection, setAuctionAuthorityTx, [wallet.payer], {
-        commitment: 'confirmed',
+        commitment: 'finalized',
       });
 
     const tx = new StartAuction(
@@ -377,12 +375,12 @@ describe('auction', () => {
     );
 
     await sendAndConfirmTransaction(connection, tx, [wallet.payer], {
-      commitment: 'confirmed',
+      commitment: 'finalized',
     });
 
   })
 
-  /*it("should place bid from bidder 1", async()=>{
+  it("should place bid from bidder 1", async()=>{
 
     const USM = new USMClient(connection, bidder1);
     await USM.placeBid(new BN(.25 * LAMPORTS_PER_SOL), auctionPubKey);
@@ -394,6 +392,6 @@ describe('auction', () => {
     const USM = new USMClient(connection, bidder2);
     await USM.placeBid(new BN(.30 * LAMPORTS_PER_SOL), auctionPubKey);
 
-  })*/
+  })
 
 })

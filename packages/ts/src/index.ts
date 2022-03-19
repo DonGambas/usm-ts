@@ -36,6 +36,8 @@ export class USMClient{
   }
 
   async placeBid(amount: BN, auction: PublicKey){
+
+    console.log("placing bid")
     //place bid   
     const result = await placeBid({
       connection: this.connection, 

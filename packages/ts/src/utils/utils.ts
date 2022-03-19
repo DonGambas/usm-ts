@@ -119,12 +119,16 @@ export const placeBid = async ({
   auction,
 }: PlaceBidParams): Promise<PlaceBidResponse> => {
   const bidder = wallet.publicKey;
+
   const accountRentExempt = await connection.getMinimumBalanceForRentExemption(AccountLayout.span);
   const auctionManager = await AuctionManager.getPDA(auction);
   const manager = await AuctionManager.load(connection, auctionManager);
+
   const {
     data: { tokenMint },
   } = await manager.getAuction(connection);
+
+
   const auctionTokenMint = new PublicKey(tokenMint);
   const vault = new PublicKey(manager.data.vault);
   const auctionExtended = await AuctionExtended.getPDA(vault);
