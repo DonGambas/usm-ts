@@ -394,4 +394,41 @@ describe('auction', () => {
 
   })
 
+  it("it should end auction", async()=>{
+
+    const auctionManager = await AuctionManager.getPDA(auctionPubKey);
+    const manager = await AuctionManager.load(connection, auctionManager)
+
+    const storeId = await Store.getPDA(wallet.publicKey);
+    const auctionPDA = await Auction.getPDA(vault);
+    const auctionExtendedPDA = await AuctionExtended.getPDA(vault)
+    const auctionManagerPDA = await AuctionManager.getPDA(auctionPDA);
+
+
+    const tx = new EndAuction(
+      { feePayer: wallet.publicKey },
+      {
+          store:storeId,
+          auction: auctionPDA,
+          auctionExtended:auctionExtendedPDA,
+          auctionManager: auctionManagerPDA,
+          auctionManagerAuthority: wallet.publicKey
+       
+      },
+    );
+
+    await sendAndConfirmTransaction(connection, tx, [wallet.payer], {
+      commitment: 'finalized',
+    });
+
+  })
+
+  it("the winner should be bidder 2", async()=>{
+
+    const USM = new USMClient(connection, bidder2);
+    const auctData = await USM.getAuctionData(auctionPubKey);
+    assert.equal(auctData.winner.bidder.toBase58(), bidder2.publicKey.toBase58())
+
+  })
+
 })
