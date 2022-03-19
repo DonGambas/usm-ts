@@ -322,20 +322,32 @@ program
         `minimum price for auction in SOL`,
         '0',
     )
-    .requiredOption(
-        '-k, --keypair <path>',
-        `Solana wallet location`,
-        '--keypair not provided',
+    .option(
+        '-t, --ticksize <number>',
+        `tick size`,
+    )
+    .option(
+        '-ag, --auctiongap <number>',
+        `auction gap`,
+    )
+    .option(
+        '-g, --gapsize-percent <number>',
+        `gap size percent`,
     )
     .option(
         '-e, --endtime <number>',
         `unix timestamp of end time of auction`,
     )
+    .requiredOption(
+        '-k, --keypair <path>',
+        `Solana wallet location`,
+        '--keypair not provided',
+    )
     .action(async (vault, options) => {
 
         // get values from options
 
-        const { env, keypair, endtime, minprice } = options;
+        const { env, keypair, endtime, minprice, ticksize, gapsize, auctiongap } = options;
 
         const connection = new Connection(clusterApiUrl(env))
         const wallet = new NodeWallet(loadKeypair(keypair))
@@ -344,10 +356,10 @@ program
 
         const auctionSettings = {
           instruction: 1,
-          tickSize: null,
-          auctionGap: null,
+          tickSize: ticksize ? new BN(ticksize): null ,
+          auctionGap: auctiongap ? new BN(auctiongap):null,
           endAuctionAt: endtime ? new BN(endtime): null,
-          gapTickSizePercentage: null,
+          gapTickSizePercentage: gapsize ? Number(gapsize): null,
           resource: vaultPubKey,
           winners: new WinnerLimit({
             type: WinnerLimitType.Capped,
@@ -480,7 +492,9 @@ program
             const safetyDepositConfig = await SafetyDepositConfig.getPDA(auctionManagerPDA,safetyDepositBox);
             const originalAuthorityLookup = await getOriginalLookupPDA(auctionPDA, metadataPDA);
             const whitelistedCreatorPDA = await WhitelistedCreator.getPDA(storeId, payer.publicKey);
+            
 
+            
 
 
             const safetyDepositConfigData = new SafetyDepositConfigData({
@@ -663,11 +677,12 @@ program
             const wallet = new NodeWallet(loadKeypair(keypair))
             const {payer} = wallet
 
-            console.log(payer.publicKey.toBase58())
 
             const auctionManager = await AuctionManager.getPDA(auction);
             const manager = await AuctionManager.load(connection, auctionManager)
             const vaultPubKey = new PublicKey(manager.data.vault);
+
+
 
             const storeId = await Store.getPDA(payer.publicKey);
             const auctionPDA = await Auction.getPDA(vaultPubKey);
