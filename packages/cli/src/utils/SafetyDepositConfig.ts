@@ -88,7 +88,7 @@ export interface ParticipationStateV2Args {
 }
 
 export class ParticipationStateV2 extends Borsh.Data<ParticipationStateV2Args> {
-  static readonly SCHEMA = ParticipationConfigV2.struct([['collectedToAcceptPayment', 'u64']]);
+  static readonly SCHEMA = ParticipationStateV2.struct([['collectedToAcceptPayment', 'u64']]);
 
   collectedToAcceptPayment: BN;
 }
