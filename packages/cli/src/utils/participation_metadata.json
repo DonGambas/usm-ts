@@ -1,0 +1,34 @@
+{
+  "name": "USM Participation NFT #1",
+  "symbol": "PRT",
+  "description": "Participation NFT for USM first drop",
+  "seller_fee_basis_points": 1000,
+  "image": "https://arweave.net:443/NbU3xK2ZhWVhzkTbEmbsQYIQHxmoVB5YuNoRkrHjxYY",
+  "attributes": [
+
+  {
+  "trait_type": "Profession",
+  "value": "farmer"
+  },
+  {
+  "trait_type": "Hygiene",
+  "value": "extra-salty"
+  }
+  ],
+  "external_url": "",
+  "properties": {
+  "files": [
+  {
+  "uri": "https://arweave.net:443/NbU3xK2ZhWVhzkTbEmbsQYIQHxmoVB5YuNoRkrHjxYY",
+  "type": "image/jpeg"
+  }
+  ],
+  "category": "image",
+  "creators": [
+  {
+  "address": "3QJZJujTgrfeGQhLPX3YMseZ7ovhQbo6eWu3SLbMQzqS",
+  "share": 100
+  }
+  ]
+  }
+  }

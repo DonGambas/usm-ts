@@ -2,7 +2,10 @@ import BN from 'bn.js';
 import { Commitment, Keypair, PublicKey, TransactionSignature, LAMPORTS_PER_SOL, AccountInfo} from '@solana/web3.js';
 import { AccountLayout } from '@solana/spl-token';
 import { Connection, Wallet } from '@metaplex/js';
+import fetch from "cross-fetch";
 
+import { Metadata, MetadataDataData } from '@metaplex-foundation/mpl-token-metadata';
+import { Account } from '@metaplex-foundation/mpl-core';
 
 import {
   Auction,
@@ -13,12 +16,17 @@ import {
   PlaceBid,
 } from '@metaplex-foundation/mpl-auction';
 
+import {
+  Vault,
+} from '@metaplex-foundation/mpl-token-vault';
+
 import { AuctionManager } from '@metaplex-foundation/mpl-metaplex';
-import { actions,  transactions} from '@metaplex/js';
+import { actions} from '@metaplex/js';
 const { getCancelBidTransactions, createApproveTxs, createWrappedAccountTxs, sendTransaction} = actions;
-const {CreateTokenAccount} = transactions;
 
 import { Transaction } from '@metaplex-foundation/mpl-core';
+import { publicKey } from '@project-serum/anchor/dist/cjs/utils';
+import { web3 } from '@project-serum/anchor';
 
 const getBidderPotTokenPDA = async (bidderPotPubKey) =>{
   return AuctionProgram.findProgramAddress([
@@ -275,9 +283,18 @@ type USMBidData = {
   timestamp: number
 }
 
+type nftData = {
+  pubKey: PublicKey,
+  metadata: any
+}
+
 type USMAuctionData = {
   // auction identifier
   pubkey: PublicKey,
+  // public key of nft being auctioned off
+  auctionNft: nftData,
+  // public key of participation nft
+  participationNft: nftData | null,
   //token that is used for bids 
   acceptedToken: PublicKey,
   // returns unix timestamp
@@ -294,7 +311,27 @@ type USMAuctionData = {
 }
 
 export const transformAuctionData = async(auction: Auction, connection:Connection) =>{
+
+
+  //get NFT pubkeys
+  const auctionManager = await AuctionManager.getPDA(auction.pubkey);
+  const manager = await AuctionManager.load(connection, auctionManager)
+  const vault = await Vault.load(connection, new PublicKey(manager.data.vault))
+  const boxes = await vault.getSafetyDepositBoxes(connection)
+  const nftPubKey = boxes[0].data.tokenMint;
+  const participationNftPubKey = boxes.length > 1 ? boxes[1].data.tokenMint : null;
+
+
+  // get metadata
+  const nftData = await getMetadata(new PublicKey(nftPubKey), connection)
+  const participationData = participationNftPubKey ? await getMetadata(new PublicKey(participationNftPubKey), connection): null;
+
+  const nftMetadata = await fetch(nftData.uri)
+  .then(response => response.json())
+
+  const participationMetadata = participationNftPubKey ? await fetch(participationData.uri).then(response => response.json()) : null;
  
+  // get bid data
   let bids = await auction.getBidderMetadata(connection);
   const usmBidData = bids.filter(bid => !bid.data.cancelled)
              .map((bid)=>{
@@ -309,8 +346,17 @@ export const transformAuctionData = async(auction: Auction, connection:Connectio
 
               usmBidData.map(bid=> bid.bidder);
   
+  //create auctiondata obj
   const AuctionData : USMAuctionData = {
     pubkey: auction.pubkey,
+    auctionNft: {
+      pubKey:new PublicKey(nftPubKey),
+      metadata:nftMetadata
+    },
+    participationNft: participationNftPubKey ? {
+      pubKey: new PublicKey(participationNftPubKey),
+      metadata: participationMetadata
+    }:null,
     acceptedToken: new PublicKey(auction.data.tokenMint),
     endedAt: auction.data.endedAt ? auction.data.endedAt.toNumber(): null, 
     endAuctionAt: auction.data.endAuctionAt ? auction.data.endAuctionAt.toNumber(): null, 
@@ -322,5 +368,13 @@ export const transformAuctionData = async(auction: Auction, connection:Connectio
 
   return AuctionData
 }
+
+export const getMetadata = async(tokenMint: web3.PublicKey, connection: Connection)=>{
+  const metadata = await Metadata.getPDA(tokenMint);
+  const metadataInfo = await Account.getInfo(connection, metadata);
+  const { data } = new Metadata(metadata, metadataInfo).data;
+  return data;
+}
+
 
 
