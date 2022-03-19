@@ -34,7 +34,8 @@
     "arconnect": "^0.4.1",
     "arweave": "^1.10.23",
     "bn.js": "^5.2.0",
-    "commander": "^9.0.0"
+    "commander": "^9.0.0",
+    "usm-js": "^0.0.4"
   },
   "devDependencies": {
     "@types/chai": "^4.3.0",

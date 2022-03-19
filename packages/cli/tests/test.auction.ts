@@ -11,6 +11,7 @@ import { loadKeypair, getOriginalLookupPDA} from "../src/utils/utils"
 import { NodeWallet, actions } from '@metaplex/js';
 import { Token, TOKEN_PROGRAM_ID, NATIVE_MINT } from "@solana/spl-token";
 import { ValidateSafetyDepositBoxV2 } from '../src/utils/validateSafetyDepositBoxV2';
+import {USMClient} from "usm-js";
 
 const {initStoreV2, createExternalPriceAccount, createVault, initAuction, addTokensToVault, mintNFT, closeVault, claimBid} = actions;
 
@@ -56,6 +57,7 @@ import {
   WinningConstraint } from '../src/utils/SafetyDepositConfig';
 
 import { TupleNumericType, Transaction } from '@metaplex-foundation/mpl-core';
+import { isTypedArray } from "util/types";
 
 
 const auctionNftMetadata = "https://arweave.net:443/ZvkmQOAlk0HBbR50C-rRS3OlMmUtmxfpEdYcsGi4viA";
@@ -66,6 +68,8 @@ describe('auction', () => {
 
   let connection;
   let wallet: NodeWallet;
+  let bidder1: NodeWallet;
+  let bidder2: NodeWallet;
   let vault;
   let auctionPubKey;
   let vaultPriceMint;
@@ -75,12 +79,21 @@ describe('auction', () => {
   let participationTokenStore
 
   before(async()=>{
-    const walletKeypair = Keypair.generate()
+    const bidder1WalletKeypair = Keypair.generate()
+    const bidder2WalletKeypair = Keypair.generate()
+
+
     connection = new Connection(clusterApiUrl("devnet"));
     wallet = new NodeWallet(loadKeypair(process.env.KEYPAIR_DEVNET))
-    await connection.confirmTransaction( await connection.requestAirdrop(wallet.publicKey, 2 * LAMPORTS_PER_SOL))
-  })
+    bidder1 = new NodeWallet(bidder1WalletKeypair);
+    bidder2 = new NodeWallet(bidder2WalletKeypair);
 
+    await connection.confirmTransaction( await connection.requestAirdrop(bidder1.publicKey, 2 * LAMPORTS_PER_SOL))
+
+    await connection.confirmTransaction( await connection.requestAirdrop(bidder2.publicKey, 2 * LAMPORTS_PER_SOL))
+    
+    //await connection.confirmTransaction( await connection.requestAirdrop(wallet.publicKey, 2 * LAMPORTS_PER_SOL))
+  })
 
   it("it should create a vault", async ()=>{
 
@@ -91,8 +104,8 @@ describe('auction', () => {
     await connection.confirmTransaction(txId);
     const result = await createVault({connection, wallet, externalPriceAccount, priceMint})
     vault = result.vault
-    console.log("vault created successfully key = ", vault.toBase58())
-    console.log("price mint = ", priceMint.toBase58())
+    //console.log("vault created successfully key = ", vault.toBase58())
+    //console.log("price mint = ", priceMint.toBase58())
   })
 
   it("it should create auction NFT", async ()=>{
@@ -103,19 +116,19 @@ describe('auction', () => {
 
     await connection.confirmTransaction(result.txId);
 
-    console.log(`auction nft created, pub key = ${auctionNftPubKey.toBase58()}`)
+    //console.log(`auction nft created, pub key = ${auctionNftPubKey.toBase58()}`)
   })
 
 
   it("it should create participation NFT", async ()=>{
 
-    const result  = await mintNFT({connection, wallet, uri: paricipationNFtMetadata, maxSupply: 1})
+    const result  = await mintNFT({connection, wallet, uri: paricipationNFtMetadata, maxSupply: null})
 
     participationNftPubKey = result.mint;
 
     await connection.confirmTransaction(result.txId);
 
-    console.log(`auction nft created, pub key = ${auctionNftPubKey.toBase58()}`)
+    //console.log(`auction nft created, pub key = ${auctionNftPubKey.toBase58()}`)
   })
 
   it("should deposit NFTs into vault and close vault", async ()=>{
@@ -144,7 +157,7 @@ describe('auction', () => {
     await closeVault({connection, wallet, vault: vault, priceMint: vaultPriceMint})
 
 
-    console.log(`nft succesfully added to vault ${vault}`)
+    //console.log(`nft succesfully added to vault ${vault}`)
   })
 
 
@@ -180,7 +193,7 @@ describe('auction', () => {
     await connection.confirmTransaction(txId)
 
     const auctionInstance = await Auction.load(connection, auction);
-    console.log("auction created at", auctionInstance.pubkey.toBase58())
+    //console.log("auction created at", auctionInstance.pubkey.toBase58())
   })
 
   it("should init auction manager", async ()=>{
@@ -224,7 +237,7 @@ describe('auction', () => {
         commitment: 'confirmed',
     });
 
-    console.log("auction manager created at", auctionManagerPDA.toBase58(), "vault and auction authority transfered to auction manager")
+    //console.log("auction manager created at", auctionManagerPDA.toBase58(), "vault and auction authority transfered to auction manager")
 
   })
 
@@ -300,8 +313,8 @@ describe('auction', () => {
             fixedPrice: null
         }),
         participationState: new ParticipationStateV2({
-            collectedToAcceptPayment: new BN(0),
-          }),
+          collectedToAcceptPayment:new BN(0)
+        })
     })
 
         const ptTx = new ValidateSafetyDepositBoxV2(
@@ -329,7 +342,7 @@ describe('auction', () => {
             commitment: 'confirmed',
         });
 
-        console.log(`auction manager validated!`)
+        //console.log(`auction manager validated!`)
 
   })
 
@@ -368,5 +381,19 @@ describe('auction', () => {
     });
 
   })
+
+  /*it("should place bid from bidder 1", async()=>{
+
+    const USM = new USMClient(connection, bidder1);
+    await USM.placeBid(new BN(.25 * LAMPORTS_PER_SOL), auctionPubKey);
+
+  })
+
+  it("should place bid from bidder 2", async()=>{
+
+    const USM = new USMClient(connection, bidder2);
+    await USM.placeBid(new BN(.30 * LAMPORTS_PER_SOL), auctionPubKey);
+
+  })*/
 
 })
