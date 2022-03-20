@@ -17,8 +17,6 @@ import {
     WinningConfigType, 
     WinningConstraint } from './utils/SafetyDepositConfig';
 
-
-
 import {  
   Auction,
   AuctionExtended,
@@ -82,7 +80,7 @@ program
         const wallet = new NodeWallet(loadKeypair(keypair))
 
         const {storeId} = await initStoreV2({connection, wallet, settingsUri: null, isPublic: false })
-        console.log("store initialized, id = ", storeId.toBase58())
+        console.log("store initialized", storeId.toBase58())
     
     })
     
@@ -133,9 +131,7 @@ program
             commitment: 'confirmed',
           });
 
-        console.log(`creator ${creatorPubKey} white listed on store ${storeId}`)
-        console.log(`tx id ${result}`)
-    
+        console.log(`creator ${creatorPubKey} white listed on store ${storeId}`)    
     })
 
 program
@@ -159,13 +155,16 @@ program
         const connection = new Connection(clusterApiUrl(env))
         const wallet = new NodeWallet(loadKeypair(keypair))
 
-        const {txId, externalPriceAccount, priceMint} = await createExternalPriceAccount({connection, wallet})
+        const {txId: priceAccountTx, externalPriceAccount, priceMint} = await createExternalPriceAccount({connection, wallet})
 
         // await createExternalPriceAccount to succeed before creating vault
-        await connection.confirmTransaction(txId);
-        const {vault} = await createVault({connection, wallet, externalPriceAccount, priceMint})
-        console.log("vault created successfully key = ", vault.toBase58())
-        console.log("price mint = ", priceMint.toBase58())
+        await connection.confirmTransaction(priceAccountTx, "finalized");
+
+        const {txId: vaultTx, vault} = await createVault({connection, wallet, externalPriceAccount, priceMint})
+        await connection.confirmTransaction(vaultTx, "finalized");
+
+        console.log("price mint created", priceMint.toBase58())
+        console.log("vault created", vault.toBase58())
     
     })
 
@@ -230,15 +229,14 @@ program
 
         const { env, keypair, participation } = options;
 
-
         const connection = new Connection(clusterApiUrl(env))
         const wallet = new NodeWallet(loadKeypair(keypair))
 
         const {txId, mint} = await mintNFT({connection, wallet, uri, maxSupply: participation ? null: 1})
 
-        await connection.confirmTransaction(txId);
+        await connection.confirmTransaction(txId, "finalized");
 
-        console.log(`${participation && `participation `}nft created, pub key = ${mint.toBase58()}`)
+        console.log(`${participation ? `participation nft created ${mint.toBase58()}`:`nft created ${mint.toBase58()}`}`)
     })
 
     program
@@ -274,7 +272,7 @@ program
             connection, wallet, vault: vaultPubKey, nfts: [{tokenAccount: address, tokenMint: nftMint, amount: new BN(1)}] })
 
         console.log(`nft succesfully added to vault ${vault}`)
-        console.log("Token store account = ,", safetyDepositTokenStores[0].tokenStoreAccount.toBase58())
+        console.log("token store account ",safetyDepositTokenStores[0].tokenStoreAccount.toBase58())
 
     })
 
@@ -361,11 +359,9 @@ program
         };
 
         const {txId, auction} = await initAuction({connection, wallet, vault: vaultPubKey, auctionSettings})
+        await connection.confirmTransaction(txId, "finalized")
 
-        await connection.confirmTransaction(txId)
-
-        const auctionInstance = await Auction.load(connection, auction);
-        console.log("auction created at", auctionInstance.pubkey.toBase58())
+        console.log("auction created", auction.toBase58())
     
     })
 
@@ -428,7 +424,7 @@ program
         const txs = Transaction.fromCombined([initAuctionManagerTx ,SetVaultAuthorityTx ]);
 
         await sendAndConfirmTransaction(connection, txs, [payer, payer], {
-            commitment: 'confirmed',
+            commitment: 'finalized',
         });
 
         console.log("auction manager created at", auctionManagerPDA.toBase58(), "vault and auction authority transfered to auction manager")
@@ -516,7 +512,7 @@ program
                 )
 
                 await sendAndConfirmTransaction(connection, tx, [payer], {
-                    commitment: 'confirmed',
+                    commitment: 'finalized',
                 });
             
 
@@ -575,7 +571,7 @@ program
                 )
 
                 await sendAndConfirmTransaction(connection, tx, [payer], {
-                    commitment: 'confirmed',
+                    commitment: 'finalized',
                 });
 
                 console.log(`auction manager validated!`)
@@ -621,7 +617,7 @@ program
             )
 
             await sendAndConfirmTransaction(connection, setAuctionAuthorityTx, [payer], {
-                commitment: 'confirmed',
+                commitment: 'finalized',
               });
         
             const tx = new StartAuction(
@@ -635,7 +631,7 @@ program
             );
         
             await sendAndConfirmTransaction(connection, tx, [payer], {
-              commitment: 'confirmed',
+              commitment: 'finalized',
             });
 
             console.log(`auction ${auctionPDA.toBase58()} has been started`)
@@ -663,7 +659,6 @@ program
             const wallet = new NodeWallet(loadKeypair(keypair))
             const {payer} = wallet
 
-            console.log(payer.publicKey.toBase58())
 
             const auctionManager = await AuctionManager.getPDA(auction);
             const manager = await AuctionManager.load(connection, auctionManager)
@@ -688,7 +683,7 @@ program
             );
         
             await sendAndConfirmTransaction(connection, tx, [payer], {
-              commitment: 'confirmed',
+              commitment: 'finalized',
             });
 
             console.log(`auction ${auctionPDA.toBase58()} has ended`)
