@@ -1,7 +1,21 @@
+
+/*
+This script is meant to be used for testing purposes, it allows you to get a metaplex auction into a 
+started state with a primary token transfer only nft and a participation nft. After the auction is started
+you can use the simulateAuction.ts script to test different outcomes of the live auction.
+
+This will start an auction with the auctionNftMetadata used to create the primary auction NFT and the 
+participationNftMetadata used to create the participation NFT
+
+This calls the cli directly, if you want to change any configs that aren't natively handled by the CLI
+commands feel free to update the CLI code
+
+*/
+
+
 import { execSync } from 'child_process';
 import {PublicKey} from "@solana/web3.js";
 import 'dotenv/config'
-
 
 let storeId;
 let vaultPubKey;
@@ -12,6 +26,7 @@ let participationNftPubKey;
 let auctionTokenStore;
 let participationTokenStore
 
+//metadata for NFTs
 
 const auctionNftMetadata = "https://arweave.net:443/ZvkmQOAlk0HBbR50C-rRS3OlMmUtmxfpEdYcsGi4viA";
 const paricipationNFtMetadata = "https://arweave.net:443/x6znTwvmKxPXxDVjkNEVvSlGa8qLvjwzX3z4_WAeev4";

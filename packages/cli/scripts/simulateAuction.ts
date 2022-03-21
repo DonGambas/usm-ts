@@ -1,4 +1,19 @@
 
+/*
+This script is meant to test the live state and ended state of an auction. You should use this script
+after starting an auction using the startAuction.ts script.
+
+Use this script to place bids on an auction. You can add additional bidders by adding more wallets to 
+the .env file and loading them here (eg. TEST_BIDDER_1, TEST_BIDDER_2)
+
+after bidding you can end the auction and redeem participation prize and auction prize. You can also validate
+the balances of the bidder wallets to make sure they recieved their nfts.
+
+Note: claim bid is not currently functioning and this script has been a bit brittle.
+
+*/
+
+
 import { execSync } from 'child_process';
 import {Token, TOKEN_PROGRAM_ID} from "@solana/spl-token";
 import { Connection, clusterApiUrl, LAMPORTS_PER_SOL, PublicKey} from "@solana/web3.js";
@@ -32,6 +47,8 @@ const simulateAuction = async() =>{
   const bidder2 = new NodeWallet(loadKeypair(process.env.TEST_BIDDER_2));
   const connection = new Connection(clusterApiUrl("devnet"));
 
+
+  // get sol balances before bid
   const balBidder1Pre = await connection.getBalance(bidder1.publicKey)
   const balBidder2Pre = await connection.getBalance(bidder2.publicKey)
 
@@ -52,16 +69,22 @@ const simulateAuction = async() =>{
 
   //redeem prizes
 
+  // redeem participation bid
   await redeemParticipationBid({connection, wallet: bidder1, store: storeId, auction: auctionPubKey})
-  console.log("loser redeem particpation")
+
+  // redeem token only bid
   await redeemTokenOnlyBid({connection, wallet: bidder2, store: storeId, auction: auctionPubKey})
   console.log("winner redeem winning prize")
 
   // look at updated token balances
 
   const participationToken = new Token(connection, participationPubKey, TOKEN_PROGRAM_ID, wallet.payer)
-
   const bidder1ParticipationBidAcct = await participationToken.getOrCreateAssociatedAccountInfo(bidder1.publicKey)
+  const bidder1ParticipationBal = bidder1ParticipationBidAcct.amount.toNumber()
+
+
+  // claim bids
+
   //await claimBid({connection, wallet, store: storeId, auction: auctionPubKey})
 
 }
