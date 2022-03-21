@@ -45,7 +45,7 @@ export class USMClient{
       auction, 
     })
     // wait for tx to confirm
-    await this.connection.confirmTransaction(result.txId);
+    await this.connection.confirmTransaction(result.txId, "finalized");
     return result;
   }
 

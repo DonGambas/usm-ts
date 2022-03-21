@@ -29,7 +29,6 @@ const startAuction = async() =>{
 
   // initialize store
 
-
   console.log('...initializing store')
 
   const storeResult = execute("init-store", `-k ${process.env.KEYPAIR_DEVNET}`)
@@ -53,7 +52,6 @@ const startAuction = async() =>{
   vaultPriceMintPubKey = new PublicKey(priceMint)
   vaultPubKey = new PublicKey(vault);
 
-
   // mint auction nft
 
   console.log('...minting auction nft')
@@ -62,7 +60,6 @@ const startAuction = async() =>{
   const auctionNftKey = auctionNftResult.trim().split(' ')[2];
   auctionNftPubKey = new PublicKey(auctionNftKey)
 
-
   // mint participation nft
 
   console.log('...minting participation nft')
@@ -70,7 +67,6 @@ const startAuction = async() =>{
   const participationNftResult  =  execute("mint-nft", `${paricipationNFtMetadata} -k ${process.env.KEYPAIR_DEVNET} --participation`)
   const participationNftKey = participationNftResult.trim().split(' ')[3];
   participationNftPubKey = new PublicKey(participationNftKey)
-
 
   //add nfts to vault
 

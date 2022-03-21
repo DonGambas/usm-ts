@@ -326,7 +326,7 @@ program
         '--keypair not provided',
     )
     .option(
-        '-e, --endtime <number>',
+        '-et, --endtime <number>',
         `unix timestamp of end time of auction`,
     )
     .action(async (vault, options) => {
@@ -538,7 +538,7 @@ program
                 amountType: TupleNumericType.U8,
                 lengthType: TupleNumericType.U8,
                 // not sure what amount ranges for participation nft should be given that it depends on num bidderss
-                amountRanges: [new AmountRange({amount: new BN(1), length: new BN(1)})],
+                amountRanges: [new AmountRange({amount: new BN(2), length: new BN(2)})],
                 participationConfig: new ParticipationConfigV2({
                     winnerConstraint:   WinningConstraint.ParticipationPrizeGiven,
                     nonWinningConstraint: NonWinningConstraint.GivenForFixedPrice,

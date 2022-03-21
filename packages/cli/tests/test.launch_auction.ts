@@ -131,7 +131,7 @@ describe('auction', () => {
 
   it("should validate auction manager", async ()=>{
 
-     test("validate-auction-manager", `${vaultPubKey.toBase58()} ${auctionNftPubKey.toBase58()} ${auctionTokenStore.toBase58()} -p ${participationNftPubKey.toBase58()} -pts ${participationTokenStore.toBase58()} -k ${process.env.KEYPAIR_DEVNET}`)
+    test("validate-auction-manager", `${vaultPubKey.toBase58()} ${auctionNftPubKey.toBase58()} ${auctionTokenStore.toBase58()} -p ${participationNftPubKey.toBase58()} -pts ${participationTokenStore.toBase58()} -k ${process.env.KEYPAIR_DEVNET}`)
 
     //assert.equal(result, 'auction manager validated!')
 
