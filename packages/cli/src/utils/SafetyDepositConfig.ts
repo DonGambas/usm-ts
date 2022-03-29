@@ -122,7 +122,7 @@ export class SafetyDepositConfigData extends Borsh.Data<SafetyDepositConfigDataA
     ]),
   ]);
 
-  key: MetaplexKey = MetaplexKey.SafetyDepositConfigV1;
+  key: MetaplexKey = MetaplexKey.SafetyDepositConfigV1
   auctionManager: StringPublicKey;
   order: BN;
   winningConfigType: WinningConfigType;

@@ -5,7 +5,7 @@ import { Account } from '@metaplex-foundation/mpl-core';
 import { Connection, Wallet, } from '@metaplex/js';
 import { PublicKey, TransactionSignature } from "@solana/web3.js";
 import { actions } from '@metaplex/js';
-import { cancelBid, transformAuctionData, placeBid } from "./utils/utils";
+import { cancelBid, transformAuctionData, placeBid, getMetadata } from "./utils/utils";
 import BN from 'bn.js';
 const { redeemFullRightsTransferBid, redeemParticipationBidV3 } = actions;
 
@@ -36,6 +36,7 @@ export class USMClient{
   }
 
   async placeBid(amount: BN, auction: PublicKey){
+
     //place bid   
     const result = await placeBid({
       connection: this.connection, 
@@ -44,7 +45,7 @@ export class USMClient{
       auction, 
     })
     // wait for tx to confirm
-    await this.connection.confirmTransaction(result.txId);
+    await this.connection.confirmTransaction(result.txId, "finalized");
     return result;
   }
 
@@ -125,10 +126,7 @@ export class USMClient{
   }
 
   async getMetadata(tokenMint: PublicKey){
-    const metadata = await Metadata.getPDA(tokenMint);
-    const metadataInfo = await Account.getInfo(this.connection, metadata);
-    const { data } = new Metadata(metadata, metadataInfo).data;
-    return data;
+    return getMetadata(tokenMint, this.connection)
   }
 
 }

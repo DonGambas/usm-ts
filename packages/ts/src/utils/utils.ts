@@ -2,7 +2,10 @@ import BN from 'bn.js';
 import { Commitment, Keypair, PublicKey, TransactionSignature, LAMPORTS_PER_SOL, AccountInfo} from '@solana/web3.js';
 import { AccountLayout } from '@solana/spl-token';
 import { Connection, Wallet } from '@metaplex/js';
+import fetch from "cross-fetch";
 
+import { Metadata, MetadataDataData } from '@metaplex-foundation/mpl-token-metadata';
+import { Account } from '@metaplex-foundation/mpl-core';
 
 import {
   Auction,
@@ -13,12 +16,17 @@ import {
   PlaceBid,
 } from '@metaplex-foundation/mpl-auction';
 
-import { AuctionManager } from '@metaplex-foundation/mpl-metaplex';
-import { actions,  transactions} from '@metaplex/js';
+import {
+  Vault,
+} from '@metaplex-foundation/mpl-token-vault';
+
+import { AuctionManager, ClaimBid } from '@metaplex-foundation/mpl-metaplex';
+import { actions} from '@metaplex/js';
 const { getCancelBidTransactions, createApproveTxs, createWrappedAccountTxs, sendTransaction} = actions;
-const {CreateTokenAccount} = transactions;
 
 import { Transaction } from '@metaplex-foundation/mpl-core';
+import { publicKey } from '@project-serum/anchor/dist/cjs/utils';
+import { web3 } from '@project-serum/anchor';
 
 const getBidderPotTokenPDA = async (bidderPotPubKey) =>{
   return AuctionProgram.findProgramAddress([
@@ -111,12 +119,16 @@ export const placeBid = async ({
   auction,
 }: PlaceBidParams): Promise<PlaceBidResponse> => {
   const bidder = wallet.publicKey;
+
   const accountRentExempt = await connection.getMinimumBalanceForRentExemption(AccountLayout.span);
   const auctionManager = await AuctionManager.getPDA(auction);
   const manager = await AuctionManager.load(connection, auctionManager);
+
   const {
     data: { tokenMint },
   } = await manager.getAuction(connection);
+
+
   const auctionTokenMint = new PublicKey(tokenMint);
   const vault = new PublicKey(manager.data.vault);
   const auctionExtended = await AuctionExtended.getPDA(vault);
@@ -275,9 +287,18 @@ type USMBidData = {
   timestamp: number
 }
 
+type nftData = {
+  pubKey: PublicKey,
+  metadata: any
+}
+
 type USMAuctionData = {
   // auction identifier
   pubkey: PublicKey,
+  // public key of nft being auctioned off
+  auctionNft: nftData,
+  // public key of participation nft
+  participationNft: nftData | null,
   //token that is used for bids 
   acceptedToken: PublicKey,
   // returns unix timestamp
@@ -294,7 +315,27 @@ type USMAuctionData = {
 }
 
 export const transformAuctionData = async(auction: Auction, connection:Connection) =>{
+
+
+  //get NFT pubkeys
+  const auctionManager = await AuctionManager.getPDA(auction.pubkey);
+  const manager = await AuctionManager.load(connection, auctionManager)
+  const vault = await Vault.load(connection, new PublicKey(manager.data.vault))
+  const boxes = await vault.getSafetyDepositBoxes(connection)
+  const nftPubKey = boxes[0].data.tokenMint;
+  const participationNftPubKey = boxes.length > 1 ? boxes[1].data.tokenMint : null;
+
+
+  // get metadata
+  const nftData = await getMetadata(new PublicKey(nftPubKey), connection)
+  const participationData = participationNftPubKey ? await getMetadata(new PublicKey(participationNftPubKey), connection): null;
+
+  const nftMetadata = await fetch(nftData.uri)
+  .then(response => response.json())
+
+  const participationMetadata = participationNftPubKey ? await fetch(participationData.uri).then(response => response.json()) : null;
  
+  // get bid data
   let bids = await auction.getBidderMetadata(connection);
   const usmBidData = bids.filter(bid => !bid.data.cancelled)
              .map((bid)=>{
@@ -309,8 +350,17 @@ export const transformAuctionData = async(auction: Auction, connection:Connectio
 
               usmBidData.map(bid=> bid.bidder);
   
+  //create auctiondata obj
   const AuctionData : USMAuctionData = {
     pubkey: auction.pubkey,
+    auctionNft: {
+      pubKey:new PublicKey(nftPubKey),
+      metadata:nftMetadata
+    },
+    participationNft: participationNftPubKey ? {
+      pubKey: new PublicKey(participationNftPubKey),
+      metadata: participationMetadata
+    }:null,
     acceptedToken: new PublicKey(auction.data.tokenMint),
     endedAt: auction.data.endedAt ? auction.data.endedAt.toNumber(): null, 
     endAuctionAt: auction.data.endAuctionAt ? auction.data.endAuctionAt.toNumber(): null, 
@@ -322,5 +372,127 @@ export const transformAuctionData = async(auction: Auction, connection:Connectio
 
   return AuctionData
 }
+
+export const getMetadata = async(tokenMint: web3.PublicKey, connection: Connection)=>{
+  const metadata = await Metadata.getPDA(tokenMint);
+  const metadataInfo = await Account.getInfo(connection, metadata);
+  const { data } = new Metadata(metadata, metadataInfo).data;
+  return data;
+}
+
+/**
+ * Parameters for {@link claimBid}
+ */
+ export interface ClaimBidParams {
+  connection: Connection;
+  /** Wallet of the bidder the bid that is being cancelled belongs to **/
+  wallet: Wallet;
+  /** The address of the auction program account for the bid that is being cancelled **/
+  auction: PublicKey;
+  /** The address of the store the auction manager the bid is being cancelled on belongs to **/
+  store: PublicKey;
+}
+
+export interface ClaimBidResponse {
+  txId: string;
+}
+
+/**
+ * Claim a winning bid as the auctioneer. Pulling money out of the auction contract as an auctioneer can only be done after an auction has ended and must be done for each winning bid, one after the other.
+ */
+export const claimBid = async ({
+  connection,
+  wallet,
+  store,
+  auction,
+}: ClaimBidParams): Promise<ClaimBidResponse> => {
+  // get data for transactions
+  const bidder = wallet.publicKey;
+  const auctionManager = await AuctionManager.getPDA(auction);
+  const manager = await AuctionManager.load(connection, auctionManager);
+  const vault = new PublicKey(manager.data.vault);
+  const {
+    data: { tokenMint },
+  } = await Auction.load(connection, auction);
+  const acceptPayment = new PublicKey(manager.data.acceptPayment);
+  const auctionExtended = await AuctionExtended.getPDA(vault);
+  const auctionTokenMint = new PublicKey(tokenMint);
+  const bidderPot = await BidderPot.getPDA(auction, bidder);
+  const bidderPotToken = await getBidderPotTokenPDA(bidderPot)
+
+  ////
+
+  const txBatch = await getClaimBidTransactions({
+    auctionTokenMint,
+    bidder,
+    store,
+    vault,
+    auction,
+    auctionExtended,
+    auctionManager,
+    acceptPayment,
+    bidderPot,
+    bidderPotToken,
+  });
+
+  const txId = await sendTransaction({
+    connection,
+    wallet,
+    txs: txBatch.toTransactions(),
+    signers: txBatch.signers,
+  });
+
+  return { txId };
+};
+
+interface IClaimBidTransactionsParams {
+  bidder: PublicKey;
+  bidderPotToken?: PublicKey;
+  bidderPot: PublicKey;
+  auction: PublicKey;
+  auctionExtended: PublicKey;
+  auctionTokenMint: PublicKey;
+  vault: PublicKey;
+  store: PublicKey;
+  auctionManager: PublicKey;
+  acceptPayment: PublicKey;
+}
+
+export const getClaimBidTransactions = async ({
+  bidder,
+  auctionTokenMint,
+  store,
+  vault,
+  auction,
+  auctionManager,
+  auctionExtended,
+  acceptPayment,
+  bidderPot,
+  bidderPotToken,
+}: IClaimBidTransactionsParams) => {
+  const txBatch = new TransactionsBatch({ transactions: [] });
+
+  // create claim bid
+  const claimBidTransaction = new ClaimBid(
+    { feePayer: bidder },
+    {
+      store,
+      vault,
+      auction,
+      auctionExtended,
+      auctionManager,
+      bidder,
+      tokenMint: auctionTokenMint,
+      acceptPayment,
+      bidderPot,
+      bidderPotToken,
+    },
+  );
+  txBatch.addTransaction(claimBidTransaction);
+  ////
+
+  return txBatch;
+};
+
 
 

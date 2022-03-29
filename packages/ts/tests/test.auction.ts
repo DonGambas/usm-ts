@@ -31,6 +31,7 @@ describe('auction', () => {
 
   it("should get the auction data", async ()=>{
     const auctionData = await USM.getAuctionData(AUCTION_PUBKEY);
+    console.log("winner", auctionData)
     assert.strictEqual(AUCTION_PUBKEY.toBase58(), auctionData.pubkey.toBase58())
   })
 

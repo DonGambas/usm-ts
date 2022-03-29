@@ -11,7 +11,9 @@ interface Wallet {
   signAllTransactions(txs: Transaction[]): Promise<Transaction[]>;
 }
 
-export const AUCTION_PUBKEY = new PublicKey('Qc8RCSx55RiptsqeEm54DFUrsvH8biiyxL7XGpmKzz4');
+export const AUCTION_PUBKEY = new PublicKey('2Uv4eWokSke21VcDVbjBysPZpxpQAr4vrwUob9viiS82');
+
+export const STORE_PUBKEY = new PublicKey('34tUCCgN7fnqxFQDtxC99huw5XRTnXTsSPBeJu2iGaKy');
 
 const PlaceBid: FC = () => {
     const { connection } = useConnection();
@@ -30,7 +32,8 @@ const PlaceBid: FC = () => {
     const onClickPlace = async (e: any) => {
        e.preventDefault();
        const bidInLamports = new BN(bidAmount * LAMPORTS_PER_SOL);
-       const result = await USM.placeBid(bidInLamports, AUCTION_PUBKEY)
+       const result = await USM.redeemParticipationBid(STORE_PUBKEY, AUCTION_PUBKEY);
+       //const result = await USM.placeBid(bidInLamports, AUCTION_PUBKEY)
        console.log(result)
     };
 
@@ -44,15 +47,15 @@ const PlaceBid: FC = () => {
     return (
         <>
 
-            <input 
+           {/* <input 
             type="number" 
             id="bid"
             value={bidAmount}
             onChange={handleInputChange}
             
-            />
+            />*/}
             <button onClick={onClickPlace}>
-                place bid
+                Reddem bid
             </button>
             <br />
             <button onClick={onClickCancel}>
