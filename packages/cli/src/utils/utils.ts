@@ -1,16 +1,16 @@
-import { MetadataData } from '@metaplex-foundation/mpl-token-metadata';
-import * as web3 from '@solana/web3.js';
+import { PublicKey, Keypair } from '@solana/web3.js';
 import Arweave from 'arweave';
 import fs from 'fs';
 import path from 'path';
 import { MetaplexProgram } from '@metaplex-foundation/mpl-metaplex';
+import { AuctionData } from '@metaplex-foundation/mpl-auction';
 
-export const loadKeypair = (keypair) => {
+export const loadKeypair = (keypair: string) => {
     if (!keypair || keypair == '') {
         throw new Error('Keypair is required!');
     }
     const keypairPath = keypair.startsWith("~/") ? path.resolve(process.env.HOME, keypair.slice(2)) : path.resolve(keypair);
-    const loaded = web3.Keypair.fromSecretKey(
+    const loaded = Keypair.fromSecretKey(
         new Uint8Array(JSON.parse(fs.readFileSync(keypairPath).toString())),
     );
     return loaded;
@@ -121,3 +121,10 @@ export const getOriginalLookupPDA =  async(auctionKey, metadataKey) => {
       metadataKey.toBuffer(),
     ]);
   }
+
+export function isWinner(auctionData: AuctionData, bidderPk: PublicKey) {
+    return auctionData.bidState.bids
+        .reverse()
+        .splice(0, auctionData.bidState.max.toNumber())
+        .some(b => b.key === bidderPk.toString());
+}
