@@ -4,9 +4,12 @@ import * as web3 from '@solana/web3.js';
 import BN from 'bn.js';
 import { NATIVE_MINT, Token, TOKEN_PROGRAM_ID} from '@solana/spl-token';
 import { NodeWallet, actions } from '@metaplex/js';
-const {initStoreV2, createExternalPriceAccount, createVault, initAuction, addTokensToVault, mintNFT, closeVault, claimBid} = actions;
-const { Connection, clusterApiUrl, PublicKey,  sendAndConfirmTransaction } = web3;
+import { claimBid } from './utils/claimBid';
 import { loadKeypair, createMetadataUri, getOriginalLookupPDA, uploadImage  } from "./utils/utils"
+import { getKeypair } from './utils/keys';
+
+const { initStoreV2, createExternalPriceAccount, createVault, initAuction, addTokensToVault, mintNFT, closeVault } = actions;
+const { Connection, clusterApiUrl, PublicKey,  sendAndConfirmTransaction } = web3;
 
 import { 
     AmountRange, 
@@ -55,6 +58,9 @@ import {
 
 
 import { program } from 'commander';
+
+export * from './sign-metadata';
+
 program.version('1.0.0');
 
 
@@ -660,17 +666,16 @@ program
             'Solana cluster env name',
             'devnet',
         )
-        .requiredOption(
+        .option(
             '-k, --keypair <path>',
-            `Solana wallet location`,
-            '--keypair not provided',
+            `Solana wallet location`
         )
         .action(async (auction, options) => {
-
-            const { env, keypair } = options;
+            const { env, keypair: pathToKeypair } = options;
 
             const connection = new Connection(clusterApiUrl(env))
-            const wallet = new NodeWallet(loadKeypair(keypair))
+            const keypair = await getKeypair(pathToKeypair);
+            const wallet = new NodeWallet(keypair);
             const {payer} = wallet
 
 
@@ -708,35 +713,40 @@ program
 
         program
         .command('claim-bid')
-        .argument('<vault>', 'auction vault')
+        .argument('<auction>', 'auction address')
+        .argument('<bidder>', 'bidder\'s address')
         .option(
             '-e, --env <string>',
             'Solana cluster env name',
             'devnet',
         )
-        .requiredOption(
+        .option(
             '-k, --keypair <path>',
-            `Solana wallet location`,
-            '--keypair not provided',
+            `Solana wallet location`
         )
-        .action(async (vault, options) => {
-
-            const { env, keypair } = options;
-
+        .action(async (auction, bidder, options) => {
+            const { env, keypair: pathToKeypair } = options;
+            const keypair = await getKeypair(pathToKeypair);
+            const wallet = new NodeWallet(keypair);
+            const { payer } = wallet
+                        
             const connection = new Connection(clusterApiUrl(env))
-            const wallet = new NodeWallet(loadKeypair(keypair))
-
-            const {payer} = wallet
-            const storeId = await Store.getPDA(payer.publicKey);
-
-            const vaultPubKey = new PublicKey(vault);
-            const auctionPDA = await Auction.getPDA(vaultPubKey);
+            const storePk = await Store.getPDA(payer.publicKey);
+            const bidderPk = new PublicKey(bidder);
+            const auctionPk = new PublicKey(auction);
     
-            const {txId} = await claimBid({connection, wallet, store: storeId, auction: auctionPDA, bidderPotToken: wallet.publicKey})
+            const {txId} = await claimBid({ 
+                connection, 
+                wallet, 
+                store: storePk, 
+                auction: auctionPk, 
+                bidder: bidderPk
+            });
         
             connection.confirmTransaction(txId);
         
-            console.log(`auction ${auctionPDA.toBase58()} has ended`)
+            console.log(`transaction success: ${txId}`);
+            console.log(`bid by ${bidder} on auction ${auction} has been claimed`)
         })
 
 program.parse(process.argv);
