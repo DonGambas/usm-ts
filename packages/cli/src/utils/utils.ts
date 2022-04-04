@@ -125,6 +125,6 @@ export const getOriginalLookupPDA =  async(auctionKey, metadataKey) => {
 export function isWinner(auctionData: AuctionData, bidderPk: PublicKey) {
     return auctionData.bidState.bids
         .reverse()
-        .splice(0, auctionData.bidState.max.toNumber())
+        .slice(0, auctionData.bidState.max.toNumber())
         .some(b => b.key === bidderPk.toString());
 }
