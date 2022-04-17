@@ -23,7 +23,12 @@ import 'dotenv/config'
 import { USMClient } from "../../ts/src/index"
 import { loadKeypair} from "../src/utils/utils"
 import { NodeWallet } from '@metaplex/js';
-import {Store} from "@metaplex-foundation/mpl-metaplex";
+import {Store, AuctionManager, BidRedemptionTicket
+} from "@metaplex-foundation/mpl-metaplex";
+import { BidderMetadata } from '@metaplex-foundation/mpl-auction';
+import { getBidRedemptionPDA
+ } from '../src/utils/redeemTokenOnlyBid';
+
 
 import {redeemTokenOnlyBid} from "../src/utils/redeemTokenOnlyBid"
 import {redeemParticipationBid} from "../src/utils/redeemParticipationBid"
@@ -33,6 +38,14 @@ const execute = (command, args) => {
   return execSync(`npx ts-node src/usm-cli.ts ${command} ${args}`).toString();
 };
 
+const getRedemptionTicket = async(connection, auction, bidder) => {
+  const bidderMetaPDA = await BidderMetadata.getPDA(auction, bidder);
+  const bidRedemptionPDA = await getBidRedemptionPDA(auction, bidderMetaPDA);
+  const accountInfo = await connection.getAccountInfo(bidRedemptionPDA);
+  const tix = new BidRedemptionTicket(bidRedemptionPDA, accountInfo)
+  console.log(tix);
+
+}
 
 const simulateAuction = async() =>{
 
@@ -42,10 +55,23 @@ const simulateAuction = async() =>{
   const auctionPubKey = new PublicKey(args[0])
   const participationPubKey = new PublicKey(args[1])
 
+  
   const wallet = new NodeWallet(loadKeypair(process.env.KEYPAIR_DEVNET))
   const bidder1 = new NodeWallet(loadKeypair(process.env.TEST_BIDDER_1));
   const bidder2 = new NodeWallet(loadKeypair(process.env.TEST_BIDDER_2));
+  const bidder3 = new NodeWallet(loadKeypair(process.env.TEST_BIDDER_3));
   const connection = new Connection(clusterApiUrl("devnet"));
+  const auctionManagerPDA = await AuctionManager.getPDA(auctionPubKey);
+  const manager = await AuctionManager.load(connection, auctionManagerPDA);
+
+  console.log("wallet", wallet.publicKey.toBase58())
+  console.log("bidder 1", bidder1.publicKey.toBase58())
+  console.log("bidder 2", bidder2.publicKey.toBase58())
+  console.log("bidder 3", bidder3.publicKey.toBase58())
+
+
+  // this will return the redemption ticket for the specified bidder
+  //getRedemptionTicket(connection,auctionPubKey, bidder2.publicKey)
 
 
   // get sol balances before bid
@@ -58,10 +84,13 @@ const simulateAuction = async() =>{
   await USM1.placeBid(new BN(.26 * LAMPORTS_PER_SOL), auctionPubKey);
   const USM2 = new USMClient(connection, bidder2);
   await USM2.placeBid(new BN(.31 * LAMPORTS_PER_SOL), auctionPubKey);
+  const USM3 = new USMClient(connection, bidder3);
+  await USM3.placeBid(new BN(.35 * LAMPORTS_PER_SOL), auctionPubKey);
 
   
  // end auctions
   execute("end-auction", `${auctionPubKey.toBase58()}  -k ${process.env.KEYPAIR_DEVNET}`)
+  
 
   // get store id
 
@@ -70,22 +99,29 @@ const simulateAuction = async() =>{
   //redeem prizes
 
   // redeem participation bid
-  await redeemParticipationBid({connection, wallet: bidder1, store: storeId, auction: auctionPubKey})
+  const {txIds} = await redeemParticipationBid({connection, wallet: bidder2, store: storeId, auction: auctionPubKey})
+
+  await connection.confirmTransaction(txIds[0])
+  await connection.confirmTransaction(txIds[1])
+
 
   // redeem token only bid
-  await redeemTokenOnlyBid({connection, wallet: bidder2, store: storeId, auction: auctionPubKey})
+  const result = await redeemTokenOnlyBid({connection, wallet: bidder3, store: storeId, auction: auctionPubKey})
   console.log("winner redeem winning prize")
 
   // look at updated token balances
 
   const participationToken = new Token(connection, participationPubKey, TOKEN_PROGRAM_ID, wallet.payer)
-  const bidder1ParticipationBidAcct = await participationToken.getOrCreateAssociatedAccountInfo(bidder1.publicKey)
+  const bidder1ParticipationBidAcct = await participationToken.getOrCreateAssociatedAccountInfo(bidder3.publicKey)
+
   const bidder1ParticipationBal = bidder1ParticipationBidAcct.amount.toNumber()
+
+  console.log(bidder1ParticipationBal)
 
 
   // claim bids
 
-  //await claimBid({connection, wallet, store: storeId, auction: auctionPubKey})
+  //await claimBid({connection, wallet, store: storeId, auction: auctionPubKey})*/
 
 }
 

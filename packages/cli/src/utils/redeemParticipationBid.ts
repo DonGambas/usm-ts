@@ -57,15 +57,22 @@ export const redeemParticipationBid = async ({
   const manager = await AuctionManager.load(connection, auctionManagerPDA);
   const vault = await Vault.load(connection, manager.data.vault);
   const auctionExtendedPDA = await AuctionExtended.getPDA(vault.pubkey);
-  const [_, safetyDepositBox] = await vault.getSafetyDepositBoxes(connection);
-  const originalMint = new PublicKey(safetyDepositBox.data.tokenMint);
 
-  const safetyDepositTokenStore = new PublicKey(safetyDepositBox.data.store);
+
+  const boxes = await vault.getSafetyDepositBoxes(connection);
+  const participationBox = boxes.find((box) => box.data.order === 1);
+
+  if (!participationBox) {
+    throw new Error('Vault is missing the participation NFT');
+  }
+  const originalMint = new PublicKey(participationBox.data.tokenMint);
+
+  const safetyDepositTokenStore = new PublicKey(participationBox.data.store);
   const bidderMetaPDA = await BidderMetadata.getPDA(auction, bidder);
   const bidRedemptionPDA = await getBidRedemptionPDA(auction, bidderMetaPDA);
   const safetyDepositConfigPDA = await SafetyDepositConfig.getPDA(
     auctionManagerPDA,
-    safetyDepositBox.pubkey,
+    participationBox.pubkey,
   );
  
   const acceptPaymentAccount = new PublicKey(manager.data.acceptPayment);
@@ -90,6 +97,7 @@ export const redeemParticipationBid = async ({
 
   const desiredEdition = masterEdition.data.supply.add(new BN(1));
   const editionMarkerPDA = await EditionMarker.getPDA(originalMint, desiredEdition);
+
 
   let tokenPaymentAccount: PublicKey;
   let account;
@@ -132,7 +140,7 @@ export const redeemParticipationBid = async ({
       bidMetadata: bidderMetaPDA,
       safetyDepositTokenStore,
       destination: recipient,
-      safetyDeposit: safetyDepositBox.pubkey,
+      safetyDeposit: participationBox.pubkey,
       bidder,
       safetyDepositConfig: safetyDepositConfigPDA,
       auctionExtended: auctionExtendedPDA,

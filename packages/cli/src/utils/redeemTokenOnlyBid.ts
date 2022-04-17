@@ -1,29 +1,35 @@
-import { Keypair, PublicKey, Connection, sendAndConfirmTransaction, Transaction } from '@solana/web3.js';
-import { AccountLayout } from '@solana/spl-token';
-import { NodeWallet, transactions } from '@metaplex/js';
+import { Keypair, PublicKey, Connection } from '@solana/web3.js';
+import { AccountLayout, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID, Token } from '@solana/spl-token';
+import { Wallet, transactions, actions } from '@metaplex/js';
 import { AuctionExtended, BidderMetadata } from '@metaplex-foundation/mpl-auction';
-import { TransactionsBatch } from '../../../ts/src/utils/utils';
+
 import {
   AuctionManager,
   MetaplexProgram,
   RedeemBid,
-  SafetyDepositConfig,
+  SafetyDepositConfig
 } from '@metaplex-foundation/mpl-metaplex';
-const { CreateTokenAccount } = transactions;
+
 import { Vault } from '@metaplex-foundation/mpl-token-vault';
 import {
   Metadata,
-  UpdatePrimarySaleHappenedViaToken,
+  UpdatePrimarySaleHappenedViaToken
 } from '@metaplex-foundation/mpl-token-metadata';
 
-export interface RedeemTokenOnlyBidParams {
+import { TransactionsBatch } from './transactionsBatch';
+import { TransactionInterface, withTransactionInterface } from './transactionInterface';
+
+const { CreateAssociatedTokenAccount } = transactions;
+const { sendTransaction } = actions;
+
+export interface RedeemBidParams {
   connection: Connection;
-  wallet: NodeWallet;
+  wallet: Wallet;
   auction: PublicKey;
   store: PublicKey;
 }
 
-export interface RedeemTokenOnlyBidResponse {
+export interface RedeemBidResponse {
   txId: string;
 }
 
@@ -31,54 +37,34 @@ export const redeemTokenOnlyBid = async ({
   connection,
   wallet,
   store,
-  auction,
-}: RedeemTokenOnlyBidParams): Promise<RedeemTokenOnlyBidResponse> => {
-  // get data for transactions
-
+  auction
+}: RedeemBidParams): Promise<TransactionInterface> => {
   const bidder = wallet.publicKey;
-
-  //rent exemption for new acct
-
-  const accountRentExempt = await connection.getMinimumBalanceForRentExemption(AccountLayout.span);
-
-  // load auction manager
-
   const auctionManager = await AuctionManager.getPDA(auction);
   const manager = await AuctionManager.load(connection, auctionManager);
   const vault = await Vault.load(connection, manager.data.vault);
   const fractionMint = new PublicKey(vault.data.fractionMint);
   const auctionExtended = await AuctionExtended.getPDA(vault.pubkey);
 
-  // get first safety deposit box as this is our auction nft safety deposit box
+  // Get the safety deposit box.
+  // The primary NFT will not always be the first in the array of boxes. Maybe "order" will be reliable?
+  const boxes = await vault.getSafetyDepositBoxes(connection);
+  const primaryBox = boxes.find((box) => box.data.order === 0);
 
-  const [safetyDepositBox] = await vault.getSafetyDepositBoxes(connection);
+  if (!primaryBox) {
+    throw new Error('Vault is missing the primary NFT');
+  }
 
-  //token mint of safety deposit box
-  const tokenMint = new PublicKey(safetyDepositBox.data.tokenMint);
-
-  //safety deposit token store
-  const safetyDepositTokenStore = new PublicKey(safetyDepositBox.data.store);
-
+  const tokenMint = new PublicKey(primaryBox.data.tokenMint);
+  const safetyDepositTokenStore = new PublicKey(primaryBox.data.store);
   const bidderMeta = await BidderMetadata.getPDA(auction, bidder);
-
   const bidRedemption = await getBidRedemptionPDA(auction, bidderMeta);
-
-  //safet deposit confit
-  const safetyDepositConfig = await SafetyDepositConfig.getPDA(
-    auctionManager,
-    safetyDepositBox.pubkey,
-  );
-
-  //vault is transfer authority over asset
-
+  const safetyDepositConfig = await SafetyDepositConfig.getPDA(auctionManager, primaryBox.pubkey);
   const transferAuthority = await Vault.getPDA(vault.pubkey);
-
-  //metadata of NFT
   const metadata = await Metadata.getPDA(tokenMint);
-  ////
 
-  const {txBatch, account} = await getRedeemTokenTransferOnlyTransactions({
-    accountRentExempt,
+  const txBatch = await getRedeemTokenTransferOnlyTransactions({
+    wallet,
     tokenMint,
     bidder,
     bidderMeta,
@@ -89,26 +75,29 @@ export const redeemTokenOnlyBid = async ({
     auctionManager,
     fractionMint,
     safetyDepositTokenStore,
-    safetyDeposit: safetyDepositBox.pubkey,
+    safetyDeposit: primaryBox.pubkey,
     bidRedemption,
     safetyDepositConfig,
     transferAuthority,
-    metadata,
+    metadata
   });
 
-  const tx = new Transaction()
-  tx.add(...txBatch.toTransactions())
+  const txId = await sendTransaction({
+    connection,
+    wallet,
+    txs: txBatch.toTransactions(),
+    signers: txBatch.signers
+  });
 
-  const txId =  await sendAndConfirmTransaction(connection, tx, [wallet.payer, account], {
-    commitment: 'finalized',
-});
 
-  return { txId };
+  console.log("tx id", txId)
+
+  return withTransactionInterface(connection, { txId });
 };
 
-interface RedeemTokenOnlyTransactionsParams {
+interface RedeemTransactionsParams {
   bidder: PublicKey;
-  accountRentExempt: number;
+  wallet: Wallet;
   bidderPotToken?: PublicKey;
   bidderMeta: PublicKey;
   auction: PublicKey;
@@ -127,7 +116,6 @@ interface RedeemTokenOnlyTransactionsParams {
 }
 
 export const getRedeemTokenTransferOnlyTransactions = async ({
-  accountRentExempt,
   bidder,
   tokenMint,
   store,
@@ -142,25 +130,32 @@ export const getRedeemTokenTransferOnlyTransactions = async ({
   fractionMint,
   safetyDepositConfig,
   transferAuthority,
-  metadata,
-}: RedeemTokenOnlyTransactionsParams) => {
+  metadata
+}: RedeemTransactionsParams) => {
   const txBatch = new TransactionsBatch({ transactions: [] });
 
-  // create a new account for redeeming
-  const account = Keypair.generate();
-  const createDestinationTransaction = new CreateTokenAccount(
+  // get deterministic token address of bidder to deposit token
+
+
+  const destAcct = await Token.getAssociatedTokenAddress(
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    TOKEN_PROGRAM_ID,
+    tokenMint,
+    bidder,
+  );
+
+    // create associated token account so that we can retreive this later
+
+
+  const createDestinationTransaction = new CreateAssociatedTokenAccount(
     { feePayer: bidder },
     {
-      newAccountPubkey: account.publicKey,
-      lamports: accountRentExempt,
-      mint: tokenMint,
-    },
+      associatedTokenAddress: destAcct,
+      walletAddress: bidder,
+      splTokenMintAddress:tokenMint
+    }
   );
-  
   txBatch.addTransaction(createDestinationTransaction);
- 
-
-  // create redeem bid
   const redeemBidTransaction = new RedeemBid(
     { feePayer: bidder },
     {
@@ -171,39 +166,35 @@ export const getRedeemTokenTransferOnlyTransactions = async ({
       bidRedemption,
       bidderMeta,
       safetyDepositTokenStore,
-      destination: account.publicKey,
+      destination: destAcct,
       safetyDeposit,
       fractionMint,
       bidder,
-      isPrintingType:false,
+      isPrintingType: false,
       safetyDepositConfig,
       auctionExtended,
-      transferAuthority,
-    },
+      transferAuthority
+    }
   );
   txBatch.addTransaction(redeemBidTransaction);
-  ////
 
-  // update primary sale happened via token
   const updatePrimarySaleHappenedViaTokenTransaction = new UpdatePrimarySaleHappenedViaToken(
     { feePayer: bidder },
     {
       metadata,
       owner: bidder,
-      tokenAccount: account.publicKey,
-    },
+      tokenAccount: destAcct
+    }
   );
   txBatch.addTransaction(updatePrimarySaleHappenedViaTokenTransaction);
-  ////
-
-  return {txBatch, account};
+  return txBatch;
 };
 
 export const getBidRedemptionPDA = async (auction: PublicKey, bidderMeta: PublicKey) => {
   return (
     await PublicKey.findProgramAddress(
       [Buffer.from(MetaplexProgram.PREFIX), auction.toBuffer(), bidderMeta.toBuffer()],
-      MetaplexProgram.PUBKEY,
+      MetaplexProgram.PUBKEY
     )
   )[0];
 };
