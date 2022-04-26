@@ -132,10 +132,20 @@ program
               activated: true,
             },
           );
+
+          const {blockhash} = await connection.getLatestBlockhash('finalized');
+
+          tx.recentBlockhash = blockhash;
+
+          await tx.partialSign(payer);
+
+          console.log(tx)
+          console.log(tx.serialize())
+
       
-          const result = await sendAndConfirmTransaction(connection, tx, [payer, payer], {
+          /*const result = await sendAndConfirmTransaction(connection, tx, [payer], {
             commitment: 'confirmed',
-          });
+          });*/
 
         console.log(`creator ${creatorPubKey} white listed on store ${storeId}`)    
     })

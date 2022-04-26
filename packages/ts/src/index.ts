@@ -32,7 +32,7 @@ export class USMClient{
 
   async getAuctionData(pubKey: PublicKey){
     const a = await Auction.load(this.connection, pubKey);
-    return transformAuctionData(a, this.connection);
+    return transformAuctionData(a, this.connection, this.wallet.publicKey);
   }
 
   async placeBid(amount: BN, auction: PublicKey){
