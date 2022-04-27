@@ -5,7 +5,7 @@ import BN from 'bn.js';
 import { NATIVE_MINT, Token, TOKEN_PROGRAM_ID} from '@solana/spl-token';
 import { NodeWallet, actions } from '@metaplex/js';
 import { claimBid } from './utils/claimBid';
-import { addTokensToVault } from './utils/addTokensToVault';
+import { addTokensToVault } from './utils/commands/addTokensToVault';
 import { loadKeypair, createMetadataUri, getOriginalLookupPDA, uploadImage  } from "./utils/utils"
 import { getKeypair } from './utils/keys';
 
@@ -19,7 +19,7 @@ import {
     SafetyDepositConfigData, 
     NonWinningConstraint,
     WinningConfigType, 
-    WinningConstraint } from './utils/SafetyDepositConfig';
+    WinningConstraint } from './utils/commands/SafetyDepositConfig';
 
 import {  
   Auction,
@@ -53,7 +53,7 @@ import {
   } from '@metaplex-foundation/mpl-token-metadata';
 
   
-  import { ValidateSafetyDepositBoxV2 } from './utils/validateSafetyDepositBoxV2';
+  import { ValidateSafetyDepositBoxV2 } from './utils/commands/validateSafetyDepositBoxV2';
 
   import { TupleNumericType, Transaction } from '@metaplex-foundation/mpl-core';
 

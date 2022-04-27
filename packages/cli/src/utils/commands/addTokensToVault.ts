@@ -14,7 +14,7 @@ import { Wallet, NodeWallet, actions, transactions} from '@metaplex/js';
 const {createApproveTxs} = actions;
 const { CreateTokenAccount } = transactions;
 
-import { TransactionsBatch } from '../../../ts/src/utils/utils';
+import { TransactionsBatch } from '../../../../ts/src/utils/utils';
 import { Signer } from '@solana/web3.js';
 
 
