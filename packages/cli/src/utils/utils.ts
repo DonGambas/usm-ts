@@ -75,12 +75,17 @@ export const createMetadataUri = async ({arweaveWallet, metadataPath}) => {
     const port = "443";
     const protocol = "https";
 
+    /*const host = '127.0.0.1';
+    const port = "1984";
+    const protocol = "http";*/
+
     const arweave = Arweave.init({
       host,
       port,
       protocol,
       timeout: 20000,
   });
+
 
     const arPath = arweaveWallet.startsWith("~/") ? path.resolve(process.env.HOME, arweaveWallet.slice(2)) : path.resolve(arweaveWallet)
 
@@ -90,8 +95,10 @@ export const createMetadataUri = async ({arweaveWallet, metadataPath}) => {
 
     const metadata = JSON.parse(fs.readFileSync(path.resolve(__dirname, metadataPath)).toString())
 
+
     console.log("address = ", address)
     console.log("balance winstons =", winston)
+
 
     const arTx = await arweave.createTransaction(
         {
@@ -102,9 +109,16 @@ export const createMetadataUri = async ({arweaveWallet, metadataPath}) => {
     arTx.addTag('App-Name', 'dfs');
     arTx.addTag('Content-Type', 'application/json');
 
-    await arweave.transactions.sign(arTx, arWallet);
-    await arweave.transactions.post(arTx);
+    try {
+        await arweave.transactions.sign(arTx, arWallet);
+        const result = await arweave.transactions.post(arTx);
 
+        console.log(result)
+    } catch (error) {
+        console.log(error)
+    }
+
+   
     const metadataUri = `${protocol}://${host}:${port}/${arTx.id}`
     console.log(`metadata URI = ${metadataUri}`)
 

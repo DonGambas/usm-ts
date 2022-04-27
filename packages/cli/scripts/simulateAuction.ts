@@ -99,11 +99,11 @@ const simulateAuction = async() =>{
 
 
   // this will return the redemption ticket for the specified bidder
-  console.log(await hasRedeemedTicket(connection,auctionPubKey, bidder3.publicKey, 0))
+  //console.log(await hasRedeemedTicket(connection,auctionPubKey, bidder3.publicKey, 0))
 
 
   // get sol balances before bid
-  /*const balBidder1Pre = await connection.getBalance(bidder1.publicKey)
+  const balBidder1Pre = await connection.getBalance(bidder1.publicKey)
   const balBidder2Pre = await connection.getBalance(bidder2.publicKey)
 
 
@@ -149,7 +149,7 @@ const simulateAuction = async() =>{
 
   // claim bids
 
-  //await claimBid({connection, wallet, store: storeId, auction: auctionPubKey})*/
+  //await claimBid({connection, wallet, store: storeId, auction: auctionPubKey})
 
 }
 
