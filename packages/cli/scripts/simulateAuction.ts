@@ -38,12 +38,40 @@ const execute = (command, args) => {
   return execSync(`npx ts-node src/usm-cli.ts ${command} ${args}`).toString();
 };
 
-const getRedemptionTicket = async(connection, auction, bidder) => {
+/*const hasWinnerRedeemedTicket = async(connection, auction, bidder) => {
   const bidderMetaPDA = await BidderMetadata.getPDA(auction, bidder);
   const bidRedemptionPDA = await getBidRedemptionPDA(auction, bidderMetaPDA);
   const accountInfo = await connection.getAccountInfo(bidRedemptionPDA);
-  const tix = new BidRedemptionTicket(bidRedemptionPDA, accountInfo)
-  console.log(tix);
+  const confirmedBidRedemption = await BidRedemptionTicket.load(
+    connection,
+    bidRedemptionPDA
+  );
+
+  console.log(confirmedBidRedemption)
+  //const tix = new BidRedemptionTicket(bidRedemptionPDA, accountInfo)
+  //console.log(tix);
+
+}*/
+
+const hasRedeemedTicket = async(connection : Connection, auction : PublicKey, bidder: PublicKey, order:number) => {
+  const bidderMetaPDA = await BidderMetadata.getPDA(auction, bidder);
+  const bidRedemptionPDA = await getBidRedemptionPDA(auction, bidderMetaPDA);
+  const accountInfo = await connection.getAccountInfo(bidRedemptionPDA);
+  const bidRedemption = new BidRedemptionTicket(bidRedemptionPDA, accountInfo)
+
+  const data = bidRedemption.data.data;
+
+  let offset = 42;
+  if (data[1] == 0) {
+    offset -= 8;
+  }
+  const index = Math.floor(order / 8) + offset;
+  const positionFromRight = 7 - (order % 8);
+  const mask = Math.pow(2, positionFromRight);
+
+  const appliedMask = data[index] & mask;
+
+  return appliedMask != 0;
 
 }
 
@@ -71,7 +99,7 @@ const simulateAuction = async() =>{
 
 
   // this will return the redemption ticket for the specified bidder
-  //getRedemptionTicket(connection,auctionPubKey, bidder2.publicKey)
+  //console.log(await hasRedeemedTicket(connection,auctionPubKey, bidder3.publicKey, 0))
 
 
   // get sol balances before bid
@@ -121,7 +149,7 @@ const simulateAuction = async() =>{
 
   // claim bids
 
-  //await claimBid({connection, wallet, store: storeId, auction: auctionPubKey})*/
+  //await claimBid({connection, wallet, store: storeId, auction: auctionPubKey})
 
 }
 

@@ -87,12 +87,15 @@ const startAuction = async() =>{
 
   console.log('...adding nfts to vault')
 
-  const resultA  = execute("add-nft-to-vault", `${auctionNftPubKey.toBase58()} ${vaultPubKey.toBase58()}  -k ${process.env.KEYPAIR_DEVNET}`)
-  const resultP  = execute("add-nft-to-vault", `${participationNftPubKey.toBase58()} ${vaultPubKey.toBase58()}  -k ${process.env.KEYPAIR_DEVNET}`)
+  const resultA  = execute("add-nft-to-vault", `${auctionNftPubKey.toBase58()} ${vaultPubKey.toBase58()}  -k ${process.env.KEYPAIR_DEVNET} -t 3QJZJujTgrfeGQhLPX3YMseZ7ovhQbo6eWu3SLbMQzqS`)
+  const resultP  = execute("add-nft-to-vault", `${participationNftPubKey.toBase58()} ${vaultPubKey.toBase58()}  -k ${process.env.KEYPAIR_DEVNET} -t 3QJZJujTgrfeGQhLPX3YMseZ7ovhQbo6eWu3SLbMQzqS`)
+
+  console.log(resultA)
+  console.log(resultP)
 
   // close vault
 
-  console.log('...closing vault')
+  /*console.log('...closing vault')
 
   execute("close-vault", `${vaultPubKey.toBase58()} ${vaultPriceMintPubKey.toBase58()}  -k ${process.env.KEYPAIR_DEVNET}`)
 
@@ -135,7 +138,7 @@ const startAuction = async() =>{
   console.log("participation nft pub key", participationNftPubKey.toBase58())
   console.log("auction token store pub key", auctionTokenStore.toBase58())
   console.log("participation token store pub key", participationTokenStore.toBase58())
-  console.log("auction pub key", auctionPubKey.toBase58())
+  console.log("auction pub key", auctionPubKey.toBase58())*/
 
 }
 

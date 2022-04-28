@@ -14,6 +14,8 @@ import {
   BidderMetadata,
   BidderPot,
   PlaceBid,
+  AuctionState as AuctionStateEnum,
+  BidderMetadataData
 } from '@metaplex-foundation/mpl-auction';
 
 import {
@@ -27,6 +29,10 @@ const { getCancelBidTransactions, createApproveTxs, createWrappedAccountTxs, sen
 import { Transaction } from '@metaplex-foundation/mpl-core';
 import { publicKey } from '@project-serum/anchor/dist/cjs/utils';
 import { web3 } from '@project-serum/anchor';
+import { getBidRedemptionTicket, hasRedeemedBid } from './hasRedeemedBid';
+
+import fs from 'fs';
+import path from 'path';
 
 const getBidderPotTokenPDA = async (bidderPotPubKey) =>{
   return AuctionProgram.findProgramAddress([
@@ -281,104 +287,139 @@ export const cancelBid = async ({
 };
 
 
-type USMBidData = {
-  bidder: PublicKey,
-  bid: number,
-  timestamp: number
-}
+const auctionStates = ['created', 'started', 'ended'] as const;
+export type AuctionState = typeof auctionStates[number];
 
-type nftData = {
-  pubKey: PublicKey,
-  metadata: any
-}
+export type USMBidData = {
+  bidder: string;
+  bid: number;
+  timestamp: number;
+  hasBeenRedeemed?: boolean;
+  hasRedeemedParticipationToken?: boolean;
+  hasBeenRefunded?: boolean;
+  won?: boolean;
+};
 
-type USMAuctionData = {
-  // auction identifier
-  pubkey: PublicKey,
-  // public key of nft being auctioned off
-  auctionNft: nftData,
-  // public key of participation nft
-  participationNft: nftData | null,
-  //token that is used for bids 
-  acceptedToken: PublicKey,
-  // returns unix timestamp
-  endedAt: number | null,
-  //returns unix timestamp
-  endAuctionAt: number | null,
-  //if the auction is currently live
-  isLive: boolean,
-  // array of processed bid
-  bids: USMBidData[],
-  //  if auction over returns winning bid else returns null
-  winner: USMBidData
-  participants: PublicKey[]
-}
+export type NftData = {
+  pubKey: PublicKey;
+  metadata: any;
+};
 
-export const transformAuctionData = async(auction: Auction, connection:Connection) =>{
+export type USMAuctionData = {
+  pubkey: PublicKey;
+  auctionNft: NftData;
+  participationNft?: NftData;
+  acceptedToken: PublicKey;
+  endTimestamp?: EpochTimeStamp;
+  state: AuctionState;
+  bids: USMBidData[];
+};
 
 
-  //get NFT pubkeys
-  const auctionManager = await AuctionManager.getPDA(auction.pubkey);
-  const manager = await AuctionManager.load(connection, auctionManager)
-  const vault = await Vault.load(connection, new PublicKey(manager.data.vault))
-  const boxes = await vault.getSafetyDepositBoxes(connection)
-  const nftPubKey = boxes[0].data.tokenMint;
-  const participationNftPubKey = boxes.length > 1 ? boxes[1].data.tokenMint : null;
+export const transformAuctionData = async (
+  auction: Auction,
+  connection: Connection,
+  bidder: PublicKey
+): Promise<USMAuctionData | undefined> => {
+  const auctionManagerPk = await AuctionManager.getPDA(auction.pubkey);
+  const auctionManager = await AuctionManager.load(connection, auctionManagerPk);
+  const vault = await Vault.load(connection, new PublicKey(auctionManager.data.vault));
+  const boxes = await vault.getSafetyDepositBoxes(connection);
 
+  // The primary NFT will not always be the first in the array of boxes. Maybe "order" will be reliable?
+  // The participation NFT, *I think*, is the one with the highest order (you can have > 1 non-participation NFTs)
+  const primaryBox = boxes.find((box) => box.data.order === 0);
+  const participationBox = boxes.find((box) => box.data.order === Math.min(1, boxes.length - 1));
 
-  // get metadata
-  const nftData = await getMetadata(new PublicKey(nftPubKey), connection)
-  const participationData = participationNftPubKey ? await getMetadata(new PublicKey(participationNftPubKey), connection): null;
-
-  const nftMetadata = await fetch(nftData.uri)
-  .then(response => response.json())
-
-  const participationMetadata = participationNftPubKey ? await fetch(participationData.uri).then(response => response.json()) : null;
- 
-  // get bid data
-  let bids = await auction.getBidderMetadata(connection);
-  const usmBidData = bids.filter(bid => !bid.data.cancelled)
-             .map((bid)=>{
-                const {data} = bid;  
-                const bidData : USMBidData = {
-                  bidder: new PublicKey(data.bidderPubkey),
-                  bid: data.lastBid.toNumber() / LAMPORTS_PER_SOL,
-                  timestamp: data.lastBidTimestamp.toNumber(),
-                } 
-                return bidData
-              }).sort((a, b) => (b.bid) - (a.bid));
-
-              usmBidData.map(bid=> bid.bidder);
-  
-  //create auctiondata obj
-  const AuctionData : USMAuctionData = {
-    pubkey: auction.pubkey,
-    auctionNft: {
-      pubKey:new PublicKey(nftPubKey),
-      metadata:nftMetadata
-    },
-    participationNft: participationNftPubKey ? {
-      pubKey: new PublicKey(participationNftPubKey),
-      metadata: participationMetadata
-    }:null,
-    acceptedToken: new PublicKey(auction.data.tokenMint),
-    endedAt: auction.data.endedAt ? auction.data.endedAt.toNumber(): null, 
-    endAuctionAt: auction.data.endAuctionAt ? auction.data.endAuctionAt.toNumber(): null, 
-    isLive: auction.data.state === 1,
-    bids: usmBidData,
-    winner: auction.data.state === 2 ? usmBidData[0] : null,
-    participants: usmBidData.map(bid=> bid.bidder)
+  if (!primaryBox) {
+    return;
   }
 
-  return AuctionData
+  const nftPubKey = primaryBox.data.tokenMint;
+  const nftData = await getMetadata(new PublicKey(nftPubKey), connection);
+  const nftMetadata = await fetch(nftData.uri).then((response) => response.json());
+
+  const participationNftPubKey = participationBox?.data.tokenMint;
+  const participationData = participationNftPubKey
+    ? await getMetadata(new PublicKey(participationNftPubKey), connection)
+    : undefined;
+  const participationMetadata = participationData
+    ? await fetch(participationData.uri).then((response) => response.json())
+    : undefined;
+
+  const auctionState = auction.data.state;
+  const maxWinners = auction.data.bidState.max.toNumber();
+  const bids = await auction.getBidderMetadata(connection);
+
+
+  //get redemption ticket for user
+  const bidderRedemptionTicket = await getBidRedemptionTicket(connection, new PublicKey(auction.pubkey), bidder);
+
+  const usmBidData = bids
+    .filter((bid) => !isCancelledBid(bid.data, auctionState))
+    .sort((a, b) => b.data.lastBid.toNumber() - a.data.lastBid.toNumber())
+    .map(({ data }, index) => {
+      const bidData: USMBidData = {
+        bidder: data.bidderPubkey,
+        bid: data.lastBid.toNumber() / LAMPORTS_PER_SOL,
+        timestamp: data.lastBidTimestamp.toNumber() * 1000
+      };
+
+      if (auctionState === AuctionStateEnum.Ended) {
+
+        const hasBeenRedeemed = bidder.toBase58() === data.bidderPubkey ? hasRedeemedBid(bidderRedemptionTicket, 0) : undefined;
+        const hasRedeemedParticipationToken = bidder.toBase58() === data.bidderPubkey ? hasRedeemedBid(bidderRedemptionTicket, Math.min(1, boxes.length - 1)) : undefined;
+
+        return {
+          hasBeenRedeemed,
+          hasRedeemedParticipationToken,
+          hasBeenRefunded: !!data.cancelled,
+          won: index < maxWinners,
+          ...bidData
+        };
+      }
+
+      return bidData;
+    });
+
+  let endTimestamp;
+  if (auctionState === AuctionStateEnum.Ended) {
+    endTimestamp = auction.data.endedAt ? auction.data.endedAt.toNumber() * 1000 : undefined;
+  } else {
+    endTimestamp = auction.data.endAuctionAt
+      ? auction.data.endAuctionAt.toNumber() * 1000
+      : undefined;
+  }
+
+  return {
+    pubkey: auction.pubkey,
+    auctionNft: {
+      pubKey: new PublicKey(nftPubKey),
+      metadata: nftMetadata
+    },
+    participationNft: participationNftPubKey
+      ? {
+          pubKey: new PublicKey(participationNftPubKey),
+          metadata: participationMetadata
+        }
+      : undefined,
+    acceptedToken: new PublicKey(auction.data.tokenMint),
+    endTimestamp,
+    state: auctionStates[auctionState],
+    bids: usmBidData
+  };
+};
+
+export function isCancelledBid(bidderMetaData: BidderMetadataData, auctionState: AuctionStateEnum) {
+  return !!bidderMetaData.cancelled && auctionState !== AuctionStateEnum.Ended;
 }
 
-export const getMetadata = async(tokenMint: web3.PublicKey, connection: Connection)=>{
+export const getMetadata = async (tokenMint: PublicKey, connection: Connection) => {
   const metadata = await Metadata.getPDA(tokenMint);
   const metadataInfo = await Account.getInfo(connection, metadata);
   const { data } = new Metadata(metadata, metadataInfo).data;
   return data;
-}
+};
 
 /**
  * Parameters for {@link claimBid}
@@ -496,3 +537,13 @@ export const getClaimBidTransactions = async ({
 
 
 
+export const loadKeypair = (keypair: string) => {
+  if (!keypair || keypair == '') {
+      throw new Error('Keypair is required!');
+  }
+  const keypairPath = keypair.startsWith("~/") ? path.resolve(process.env.HOME, keypair.slice(2)) : path.resolve(keypair);
+  const loaded = Keypair.fromSecretKey(
+      new Uint8Array(JSON.parse(fs.readFileSync(keypairPath).toString())),
+  );
+  return loaded;
+}

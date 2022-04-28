@@ -5,10 +5,11 @@ import BN from 'bn.js';
 import { NATIVE_MINT, Token, TOKEN_PROGRAM_ID} from '@solana/spl-token';
 import { NodeWallet, actions } from '@metaplex/js';
 import { claimBid } from './utils/claimBid';
+import { addTokensToVault } from './utils/commands/addTokensToVault';
 import { loadKeypair, createMetadataUri, getOriginalLookupPDA, uploadImage  } from "./utils/utils"
 import { getKeypair } from './utils/keys';
 
-const { initStoreV2, createExternalPriceAccount, createVault, initAuction, addTokensToVault, mintNFT, closeVault } = actions;
+const { initStoreV2, createExternalPriceAccount, createVault, initAuction, mintNFT, closeVault } = actions;
 const { Connection, clusterApiUrl, PublicKey,  sendAndConfirmTransaction } = web3;
 
 import { 
@@ -18,7 +19,7 @@ import {
     SafetyDepositConfigData, 
     NonWinningConstraint,
     WinningConfigType, 
-    WinningConstraint } from './utils/SafetyDepositConfig';
+    WinningConstraint } from './utils/commands/SafetyDepositConfig';
 
 import {  
   Auction,
@@ -52,7 +53,7 @@ import {
   } from '@metaplex-foundation/mpl-token-metadata';
 
   
-  import { ValidateSafetyDepositBoxV2 } from './utils/validateSafetyDepositBoxV2';
+  import { ValidateSafetyDepositBoxV2 } from './utils/commands/validateSafetyDepositBoxV2';
 
   import { TupleNumericType, Transaction } from '@metaplex-foundation/mpl-core';
 
@@ -132,8 +133,7 @@ program
               activated: true,
             },
           );
-      
-          const result = await sendAndConfirmTransaction(connection, tx, [payer, payer], {
+          const result = await sendAndConfirmTransaction(connection, tx, [payer], {
             commitment: 'confirmed',
           });
 
@@ -259,12 +259,20 @@ program
         `Solana wallet location`,
         '--keypair not provided',
     )
+    .requiredOption(
+        '-t, --tokenkey <string>',
+        `token owner wallet key`,
+        '--keypair not provided',
+    )
     .action(async (nft, vault, options) => {
 
-        const { env, keypair } = options;
+        const { env, keypair, tokenkey } = options;
+
+    console.log(tokenkey)
 
         const connection = new Connection(clusterApiUrl(env))
         const wallet = new NodeWallet(loadKeypair(keypair))
+        const tokenOwnerKey = tokenkey ? new PublicKey(tokenkey) : wallet.publicKey;
         const {payer} = wallet;
 
         const nftMint = new PublicKey(nft);
@@ -272,13 +280,16 @@ program
 
         const nftToken = new Token(connection, nftMint, TOKEN_PROGRAM_ID, payer);
 
-        const {address} = await nftToken.getOrCreateAssociatedAccountInfo(payer.publicKey);
+        const {address} = await nftToken.getOrCreateAssociatedAccountInfo(tokenOwnerKey);
 
-        const {safetyDepositTokenStores} = await addTokensToVault({
-            connection, wallet, vault: vaultPubKey, nfts: [{tokenAccount: address, tokenMint: nftMint, amount: new BN(1)}] })
+        const {tokenStore
+            , tx, signers} = await addTokensToVault({
+            connection, wallet, tokenOwnerKey, vault: vaultPubKey, nft: {tokenAccount: address, tokenMint: nftMint, amount: new BN(1)} })
 
         console.log(`nft succesfully added to vault ${vault}`)
-        console.log("token store account ",safetyDepositTokenStores[0].tokenStoreAccount.toBase58())
+        console.log("token store account ",tokenStore.tokenStoreAccount.toBase58())
+        console.log("tx", tx)
+        console.log("signers", signers)
 
     })
 
@@ -467,13 +478,17 @@ program
             '-pts, --participation_token_store <string>',
             'participation nft mint',
         )
+        .option(
+            '-c, --creator <string>',
+            'pub key of nft creator',
+        )
         .requiredOption(
             '-k, --keypair <path>',
             `Solana wallet location`,
             '--keypair not provided',
         )
         .action(async (vault, nft, token_store, options) =>{
-            const { env, keypair, participation_nft, participation_token_store } = options;
+            const { env, keypair, participation_nft, participation_token_store, creator } = options;
 
             const connection = new Connection(clusterApiUrl(env))
             const wallet = new NodeWallet(loadKeypair(keypair))
@@ -482,7 +497,7 @@ program
             const mintPubKey = new PublicKey(nft);
             const vaultPubKey = new PublicKey(vault);
             const tokenStorePubKey = new PublicKey(token_store);
-
+            const creatorPubKey = creator ? new PublicKey(creator) : payer.publicKey;
 
             const storeId = await Store.getPDA(payer.publicKey);
             const auctionPDA = await Auction.getPDA(vaultPubKey);
@@ -493,11 +508,8 @@ program
             const safetyDepositBox = await SafetyDepositBox.getPDA(vaultPubKey, mintPubKey);
             const safetyDepositConfig = await SafetyDepositConfig.getPDA(auctionManagerPDA,safetyDepositBox);
             const originalAuthorityLookup = await getOriginalLookupPDA(auctionPDA, metadataPDA);
-            const whitelistedCreatorPDA = await WhitelistedCreator.getPDA(storeId, payer.publicKey);
+            const whitelistedCreatorPDA = await WhitelistedCreator.getPDA(storeId, creatorPubKey);
             
-
-            
-
 
             const safetyDepositConfigData = new SafetyDepositConfigData({
                 auctionManager: auctionManagerPDA.toBase58(),
