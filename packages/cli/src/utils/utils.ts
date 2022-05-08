@@ -16,6 +16,10 @@ export const loadKeypair = (keypair: string) => {
     return loaded;
 }
 
+export const getUnixTs = ()=> {
+    return new Date().getTime() / 1000;
+  }
+
 export const uploadImage = async ({arweaveWallet, imagePath}) => {
 
     // need to save prod key in .env variable 

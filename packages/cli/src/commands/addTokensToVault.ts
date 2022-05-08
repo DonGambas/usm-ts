@@ -6,15 +6,15 @@ import {
   SafetyDepositBox,
   AddTokenToInactiveVault,
 } from '@metaplex-foundation/mpl-token-vault';
-import { Connection, TransactionSignature, PublicKey, Keypair,sendAndConfirmTransaction, Transaction } from '@solana/web3.js';
+import { Connection,  PublicKey, Keypair } from '@solana/web3.js';
 
-import { Wallet, NodeWallet, actions, transactions} from '@metaplex/js';
+import {  NodeWallet, actions, transactions} from '@metaplex/js';
 
 
 const {createApproveTxs} = actions;
 const { CreateTokenAccount } = transactions;
 
-import { TransactionsBatch } from '../../../../ts/src/utils/utils';
+import { TransactionsBatch } from '../utils/transactionsBatch';
 import { Signer } from '@solana/web3.js';
 
 
@@ -40,8 +40,7 @@ interface AddTokensToVaultParams {
 
 interface AddTokensToVaultResponse {
   tokenStore: SafetyDepositTokenStore;
-  tx: Transaction;
-  signers: Signer[];
+  tx: TransactionsBatch;
 }
 
 export const addTokensToVault = async ({
@@ -85,11 +84,9 @@ export const addTokensToVault = async ({
       amount: nft.amount,
     });
     tokenTxBatch.addTransaction(addTokenTx);
-
-    const tx = new Transaction()
-    tx.add(...tokenTxBatch.toTransactions())
-
-    //const txId = await sendAndConfirmTransaction(connection, tx, [wallet.payer, tokenStoreAccount, transferAuthority], {commitment:"finalized"})
+    tokenTxBatch.addSigner(wallet.payer);
+    tokenTxBatch.addSigner(tokenStoreAccount);
+    tokenTxBatch.addSigner(transferAuthority);
 
     const tokenStore = {
       tokenStoreAccount: tokenStoreAccount.publicKey,
@@ -97,5 +94,5 @@ export const addTokensToVault = async ({
       tokenAccount: nft.tokenAccount,
     }
 
-  return { tokenStore, tx, signers: [wallet.payer, tokenStoreAccount, transferAuthority]};
+  return { tokenStore, tx: tokenTxBatch};
 };

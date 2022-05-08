@@ -5,9 +5,11 @@ import BN from 'bn.js';
 import { NATIVE_MINT, Token, TOKEN_PROGRAM_ID} from '@solana/spl-token';
 import { NodeWallet, actions } from '@metaplex/js';
 import { claimBid } from './utils/claimBid';
-import { addTokensToVault } from './utils/commands/addTokensToVault';
+import { addTokensToVault } from './commands/addTokensToVault';
 import { loadKeypair, createMetadataUri, getOriginalLookupPDA, uploadImage  } from "./utils/utils"
+import { createProposal } from './commands/DAO/createProposalCore';
 import { getKeypair } from './utils/keys';
+import { createMintNftTransaction } from './commands/mintNft';
 
 const { initStoreV2, createExternalPriceAccount, createVault, initAuction, mintNFT, closeVault } = actions;
 const { Connection, clusterApiUrl, PublicKey,  sendAndConfirmTransaction } = web3;
@@ -19,7 +21,7 @@ import {
     SafetyDepositConfigData, 
     NonWinningConstraint,
     WinningConfigType, 
-    WinningConstraint } from './utils/commands/SafetyDepositConfig';
+    WinningConstraint } from './commands/SafetyDepositConfig';
 
 import {  
   Auction,
@@ -53,12 +55,13 @@ import {
   } from '@metaplex-foundation/mpl-token-metadata';
 
   
-  import { ValidateSafetyDepositBoxV2 } from './utils/commands/validateSafetyDepositBoxV2';
+  import { ValidateSafetyDepositBoxV2 } from './commands/validateSafetyDepositBoxV2';
 
   import { TupleNumericType, Transaction } from '@metaplex-foundation/mpl-core';
 
 
 import { program } from 'commander';
+import { text } from 'stream/consumers';
 
 export * from './sign-metadata';
 
@@ -223,6 +226,12 @@ program
         'devnet',
     )
     .option(
+        '-c, --creator <string>', 'creator nft pub key'
+    )
+    .option(
+        '-dao, --dao_governance <string>', 'dao governance pubkey'
+    )
+    .option(
         '--participation', 'use if this is a participation nft'
     )
     .requiredOption(
@@ -233,16 +242,40 @@ program
    
     .action(async (uri, options) => {
 
-        const { env, keypair, participation } = options;
+        const { env, keypair, creator,  participation, dao_governance } = options;
 
         const connection = new Connection(clusterApiUrl(env))
         const wallet = new NodeWallet(loadKeypair(keypair))
+        const creatorPk = new PublicKey(creator);
+        const daoPK = new PublicKey(dao_governance)
 
-        const {txId, mint} = await mintNFT({connection, wallet, uri, maxSupply: participation ? null: 1})
+        // get the mint nft raw tx
+        // @TODO who is payer and who is creator in this case? 
 
-        await connection.confirmTransaction(txId, "finalized");
+        const {transaction, mintPk} = await createMintNftTransaction({
+            connection,
+            payer: wallet.publicKey,
+            creator: creatorPk,
+            uri,
+            maxSupply: participation ? null: 1}
+            )
 
-        console.log(`${participation ? `participation nft created ${mint.toBase58()}`:`nft created ${mint.toBase58()}`}`)
+        const proposalName = `create ${mintPk.toBase58()}` 
+        const proposalDescription = `create ${mintPk.toBase58()} for USM auction`
+
+        await createProposal({
+            owner: daoPK,
+            transaction,
+            name: proposalName,
+            description: proposalDescription,
+            connection,
+            wallet,
+            env
+        })
+
+        // @TODO what happens next? Do we need to execute the tx from here?
+
+        console.log(`${participation ? `participation nft created ${mintPk.toBase58()}`:`nft created ${mintPk.toBase58()}`}`)
     })
 
     program
@@ -253,6 +286,9 @@ program
         '-e, --env <string>',
         'Solana cluster env name',
         'devnet',
+    )
+    .option(
+        '-dao, --dao_governance <string>', 'dao governance pubkey'
     )
     .requiredOption(
         '-k, --keypair <path>',
@@ -266,13 +302,12 @@ program
     )
     .action(async (nft, vault, options) => {
 
-        const { env, keypair, tokenkey } = options;
-
-    console.log(tokenkey)
+        const { env, keypair, tokenkey, dao_governance } = options;
 
         const connection = new Connection(clusterApiUrl(env))
         const wallet = new NodeWallet(loadKeypair(keypair))
         const tokenOwnerKey = tokenkey ? new PublicKey(tokenkey) : wallet.publicKey;
+        const daoPK = new PublicKey(dao_governance)
         const {payer} = wallet;
 
         const nftMint = new PublicKey(nft);
@@ -282,15 +317,31 @@ program
 
         const {address} = await nftToken.getOrCreateAssociatedAccountInfo(tokenOwnerKey);
 
-        const {tokenStore
-            , tx, signers} = await addTokensToVault({
-            connection, wallet, tokenOwnerKey, vault: vaultPubKey, nft: {tokenAccount: address, tokenMint: nftMint, amount: new BN(1)} })
+        const {tokenStore, tx} = await addTokensToVault({
+            connection, 
+            wallet, 
+            tokenOwnerKey, 
+            vault: vaultPubKey,
+             nft: {tokenAccount: address, tokenMint: nftMint, amount: new BN(1)} 
+            })
+
+        const proposalName = `add ${nft} to vault ${vault}` 
+        const proposalDescription = `add ${nft} to vault ${vault} for USM auction`
+
+        await createProposal({
+            owner: daoPK,
+            transaction: tx,
+            name: proposalName,
+            description: proposalDescription,
+            connection,
+            wallet,
+            env
+        })
+
+        // @TODO what happens next? Do we need to execute the tx from here?
 
         console.log(`nft succesfully added to vault ${vault}`)
-        console.log("token store account ",tokenStore.tokenStoreAccount.toBase58())
-        console.log("tx", tx)
-        console.log("signers", signers)
-
+        console.log(`token store account ${tokenStore.tokenStoreAccount.toBase58()}`)
     })
 
     program
