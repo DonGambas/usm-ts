@@ -229,6 +229,9 @@ program
         '-c, --creator <string>', 'creator nft pub key'
     )
     .option(
+        '-dao, --dao_governance <string>', 'dao governance pubkey'
+    )
+    .option(
         '--participation', 'use if this is a participation nft'
     )
     .requiredOption(
@@ -239,11 +242,12 @@ program
    
     .action(async (uri, options) => {
 
-        const { env, keypair, creator,  participation } = options;
+        const { env, keypair, creator,  participation, dao_governance } = options;
 
         const connection = new Connection(clusterApiUrl(env))
         const wallet = new NodeWallet(loadKeypair(keypair))
         const creatorPk = new PublicKey(creator);
+        const daoPK = new PublicKey(dao_governance)
 
         // get the mint nft raw tx
         // @TODO who is payer and who is creator in this case? 
@@ -259,10 +263,8 @@ program
         const proposalName = `create ${mintPk.toBase58()}` 
         const proposalDescription = `create ${mintPk.toBase58()} for USM auction`
 
-        // @TODO who is owner? 
-
         await createProposal({
-            owner: wallet.publicKey,
+            owner: daoPK,
             transaction,
             name: proposalName,
             description: proposalDescription,
@@ -285,6 +287,9 @@ program
         'Solana cluster env name',
         'devnet',
     )
+    .option(
+        '-dao, --dao_governance <string>', 'dao governance pubkey'
+    )
     .requiredOption(
         '-k, --keypair <path>',
         `Solana wallet location`,
@@ -297,11 +302,12 @@ program
     )
     .action(async (nft, vault, options) => {
 
-        const { env, keypair, tokenkey } = options;
+        const { env, keypair, tokenkey, dao_governance } = options;
 
         const connection = new Connection(clusterApiUrl(env))
         const wallet = new NodeWallet(loadKeypair(keypair))
         const tokenOwnerKey = tokenkey ? new PublicKey(tokenkey) : wallet.publicKey;
+        const daoPK = new PublicKey(dao_governance)
         const {payer} = wallet;
 
         const nftMint = new PublicKey(nft);
@@ -322,10 +328,8 @@ program
         const proposalName = `add ${nft} to vault ${vault}` 
         const proposalDescription = `add ${nft} to vault ${vault} for USM auction`
 
-        // @TODO who is owner? 
-
         await createProposal({
-            owner: payer.publicKey,
+            owner: daoPK,
             transaction: tx,
             name: proposalName,
             description: proposalDescription,
